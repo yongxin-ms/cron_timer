@@ -14,9 +14,10 @@ void on_3_second_timer()
 	printf("3 second timer hit\n");
 }
 
+CronTimer::TimerMgr g_timer_mgr;
+
 int main()
 {
-	CronTimer::TimerMgr g_timer_mgr;
 	g_timer_mgr.Start();
 	g_timer_mgr.AddTimer("* * * * * * *", on_1_second_timer);
 	g_timer_mgr.AddTimer("*0/3 * * * * * *", on_3_second_timer);
