@@ -2,25 +2,32 @@
 //
 
 #include "stdafx.h"
-#include "cron_timer.h"
+#include "cron_timer_mgr.h"
 
-void on_timer()
+void on_1_second_timer()
 {
-	printf("timer hit\n");
+	printf("1 second timer hit\n");
+}
+
+void on_3_second_timer()
+{
+	printf("3 second timer hit\n");
 }
 
 int main()
 {
-	CronTimer::TimerMgr g_mgr;
-	g_mgr.Start();
-	g_mgr.AddTimer("* * * * * * *", on_timer);
+	CronTimer::TimerMgr g_timer_mgr;
+	g_timer_mgr.Start();
+	g_timer_mgr.AddTimer("* * * * * * *", on_1_second_timer);
+	g_timer_mgr.AddTimer("*0/3 * * * * * *", on_3_second_timer);
 
 	while (true)
 	{
-		g_mgr.Update();
+		g_timer_mgr.Update();
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 
-	g_mgr.Stop();
+	g_timer_mgr.Stop();
     return 0;
 }
 

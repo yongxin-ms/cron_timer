@@ -24,7 +24,7 @@
     <ClInclude Include="targetver.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="cron_timer.h">
+    <ClInclude Include="cron_timer_mgr.h">
       <Filter>源文件</Filter>
     </ClInclude>
   </ItemGroup>
