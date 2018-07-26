@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <string>
 #include <set>
 #include <list>
@@ -11,7 +11,7 @@ namespace CronTimer {
 	class Text
 	{
 	public:
-		//²ð·Ö×Ö·û´®
+		//æ‹†åˆ†å­—ç¬¦ä¸²
 		static size_t SplitStr(std::vector<std::string>& os, const std::string& is, const char c) {
 			os.clear();
 			std::string::size_type pos_find = is.find_first_of(c, 0);
@@ -33,7 +33,7 @@ namespace CronTimer {
 			return os.size();
 		}
 
-		//²ð·ÖÕûÊý
+		//æ‹†åˆ†æ•´æ•°
 		static size_t SplitInt(std::vector<int>& number_result, const std::string& is, const char c) {
 			std::vector<std::string> string_result;
 			SplitStr(string_result, is, c);
