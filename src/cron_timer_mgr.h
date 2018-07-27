@@ -11,7 +11,6 @@ namespace CronTimer {
 	class Text
 	{
 	public:
-		//拆分字符串
 		static size_t SplitStr(std::vector<std::string>& os, const std::string& is, const char c) {
 			os.clear();
 			std::string::size_type pos_find = is.find_first_of(c, 0);
@@ -33,7 +32,6 @@ namespace CronTimer {
 			return os.size();
 		}
 
-		//拆分整数
 		static size_t SplitInt(std::vector<int>& number_result, const std::string& is, const char c) {
 			std::vector<std::string> string_result;
 			SplitStr(string_result, is, c);
@@ -65,18 +63,13 @@ namespace CronTimer {
 			static const char CRON_SEPERATOR_RANGE = '-';
 			static const char CRON_SEPERATOR_INTERVAL = '/';
 
-			values_.clear();
 			is_all_ = false;
-			error_.str("");
-
 			if (input == "*") {
 				is_all_ = true;
-			}
-			else if (input.find_first_of(CRON_SEPERATOR_ENUM) != std::string::npos) {
-				std::pair<int, int> pair_range = GetRangeFromType(data_type);
+			} else if (input.find_first_of(CRON_SEPERATOR_ENUM) != std::string::npos) {
 				std::vector<int> v;
 				Text::SplitInt(v, input, CRON_SEPERATOR_ENUM);
-
+				std::pair<int, int> pair_range = GetRangeFromType(data_type);
 				for (auto value : v) {
 					if (value < pair_range.first || value > pair_range.second) {
 						error_ << "out of range ,value:" << value << ", data_type:" << data_type;
@@ -84,12 +77,9 @@ namespace CronTimer {
 					}
 					values_.insert(value);
 				}
-			}
-			else if (input.find_first_of(CRON_SEPERATOR_RANGE) != std::string::npos) {
-				std::pair<int, int> pair_range = GetRangeFromType(data_type);
+			} else if (input.find_first_of(CRON_SEPERATOR_RANGE) != std::string::npos) {
 				std::vector<int> v;
 				Text::SplitInt(v, input, CRON_SEPERATOR_RANGE);
-
 				if (v.size() != 2) {
 					error_ << "time format error:" << input;
 					return;
@@ -97,7 +87,7 @@ namespace CronTimer {
 
 				int from = v[0];
 				int to = v[1];
-
+				std::pair<int, int> pair_range = GetRangeFromType(data_type);
 				if (from < pair_range.first || to > pair_range.second) {
 					error_ << "out of range from:" << from << ", to:" << to << ", data_type:" << data_type;
 					return;
@@ -106,12 +96,9 @@ namespace CronTimer {
 				for (int i = 0; i <= to; i++) {
 					values_.insert(i);
 				}
-			}
-			else if (input.find_first_of(CRON_SEPERATOR_INTERVAL) != std::string::npos) {
-				std::pair<int, int> pair_range = GetRangeFromType(data_type);
+			} else if (input.find_first_of(CRON_SEPERATOR_INTERVAL) != std::string::npos) {
 				std::vector<int> v;
 				Text::SplitInt(v, input, CRON_SEPERATOR_INTERVAL);
-
 				if (v.size() != 2) {
 					error_ << "time format error:" << input;
 					return;
@@ -119,7 +106,7 @@ namespace CronTimer {
 
 				int from = v[0];
 				int interval = v[1];
-
+				std::pair<int, int> pair_range = GetRangeFromType(data_type);
 				if (from < pair_range.first || interval < 0) {
 					error_ << "out of range from:" << from << ", interval:" << interval << ", data_type:" << data_type;
 					return;
@@ -252,13 +239,11 @@ namespace CronTimer {
 
 		bool Hit(time_t t) const {
 			tm _tm;
-
 #ifdef _WIN32
 			::localtime_s(&_tm, &t);
 #else
 			::localtime_r(&t, &_tm);
 #endif
-
 			return second_->Hit(_tm.tm_sec) &&
 				minute_->Hit(_tm.tm_min) &&
 				hour_->Hit(_tm.tm_hour) &&
@@ -294,12 +279,8 @@ namespace CronTimer {
 
 	class TimerMgr {
 	public:
-		TimerMgr() {
-			latest_timer_id_ = 0;
-			thread_ = nullptr;
-			thread_stop_ = false;
-			last_proc = 0;
-		}
+		TimerMgr() : latest_timer_id_(0), thread_(nullptr), thread_stop_(false), last_proc(0) {};
+		~TimerMgr() { Stop(); };
 
 		void Start() {
 			last_proc = time(nullptr);
@@ -323,14 +304,14 @@ namespace CronTimer {
 		}
 
 		int AddTimer(const std::string& timer_string, const CRON_FUNC_CALLBACK& func) {
-			++latest_timer_id_;
-			TimerUnit* timer_ptr = new TimerUnit(latest_timer_id_, timer_string, func);
+			TimerUnit* timer_ptr = new TimerUnit(latest_timer_id_ + 1, timer_string, func);
 
 			if (!timer_ptr->cron_time.IsValid()) {
 				delete timer_ptr;
 				return 0;
 			}
 
+			++latest_timer_id_;
 			std::unique_lock<std::mutex> lock(mutex_timers_);
 			cron_timers_.push_back(timer_ptr);
 			return timer_ptr->timer_id;
@@ -366,9 +347,10 @@ namespace CronTimer {
 			}
 		}
 
+	private:
 		struct TimerUnit {
 			TimerUnit(int timer_id_r, const std::string& timer_string_r, const CRON_FUNC_CALLBACK& func_r)
-				: timer_id(timer_id_r), timer_string(timer_string_r) , func(func_r), cron_time(timer_string) {}
+				: timer_id(timer_id_r), timer_string(timer_string_r), func(func_r), cron_time(timer_string) {}
 
 			int timer_id;
 			std::string timer_string;
@@ -376,7 +358,6 @@ namespace CronTimer {
 			CronTime cron_time;
 		};
 
-	private:
 		void ThreadProc() {
 			while (!thread_stop_) {
 				time_t time_now = time(nullptr);
@@ -399,6 +380,7 @@ namespace CronTimer {
 			}
 		}
 
+	private:
 		mutable std::mutex mutex_timers_;
 		std::list<TimerUnit*> cron_timers_;
 
