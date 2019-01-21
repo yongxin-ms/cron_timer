@@ -209,7 +209,7 @@ namespace CronTimer {
 			const std::string& year = v[6];
 
 			second_ = new CronExpression(second, CronExpression::DT_SECOND);
-			minute_ = new CronExpression(minute, CronExpression::DT_MONTH);
+			minute_ = new CronExpression(minute, CronExpression::DT_MINUTE);
 			hour_ = new CronExpression(hour, CronExpression::DT_HOUR);
 			day_of_month_ = new CronExpression(day_of_month, CronExpression::DT_DAY_OF_MONTH);
 			month_ = new CronExpression(month, CronExpression::DT_MONTH);
