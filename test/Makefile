@@ -1,4 +1,4 @@
-cc = /usr/bin/g++
+﻿cc = /usr/bin/g++
 prom = ./cron_timer_test
 deps = $(shell find ./ -name "*.h")
 src = $(shell find ./ -name "*.cpp")
