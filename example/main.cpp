@@ -16,7 +16,7 @@ int main()
 {
 	g_timer_mgr.Start();
 	g_timer_mgr.AddTimer("* * * * * * *", on_1_second_timer);
-	g_timer_mgr.AddTimer("*0/3 * * * * * *", on_3_second_timer);
+	g_timer_mgr.AddTimer("0/3 * * * * * *", on_3_second_timer);
 
 	while (true)
 	{
