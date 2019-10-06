@@ -6,10 +6,10 @@
 #include <sstream>
 #include <thread>
 #include <mutex>
+#include "singleton.h"
 
 namespace CronTimer {
-	class Text
-	{
+	class Text {
 	public:
 		static size_t SplitStr(std::vector<std::string>& os, const std::string& is, const char c) {
 			os.clear();
@@ -17,7 +17,7 @@ namespace CronTimer {
 			std::string::size_type pos_last_find = 0;
 			while (std::string::npos != pos_find) {
 				std::string::size_type num_char = pos_find - pos_last_find;
-				os.push_back(is.substr(pos_last_find, num_char));
+				os.emplace_back(is.substr(pos_last_find, num_char));
 
 				pos_last_find = pos_find + 1;
 				pos_find = is.find_first_of(c, pos_last_find);
@@ -28,7 +28,7 @@ namespace CronTimer {
 				num_char = is.length();
 
 			std::string sub = is.substr(pos_last_find, num_char);
-			os.push_back(sub);
+			os.emplace_back(sub);
 			return os.size();
 		}
 
@@ -39,7 +39,7 @@ namespace CronTimer {
 			number_result.clear();
 			for (size_t i = 0; i < string_result.size(); i++) {
 				const std::string& value = string_result[i];
-				number_result.push_back(atoi(value.data()));
+				number_result.emplace_back(atoi(value.data()));
 			}
 
 			return number_result.size();
@@ -59,7 +59,13 @@ namespace CronTimer {
 		};
 
 		CronExpression(const std::string& input, DATA_TYPE data_type) {
-			static const char CRON_SEPERATOR_ENUM = ',';
+			
+			//
+			// 注意：枚举之前是','，为了能在csv中使用改成了';'
+			// 20181226 xinyong
+			//
+			
+			static const char CRON_SEPERATOR_ENUM = ';';
 			static const char CRON_SEPERATOR_RANGE = '-';
 			static const char CRON_SEPERATOR_INTERVAL = '/';
 
@@ -186,15 +192,12 @@ namespace CronTimer {
 		std::ostringstream error_;
 	};
 
-#define CRON_TIME_SAFE_DELETE(p) {if (p) {delete (p); (p) = nullptr;}}
 #define CRON_TIME_IS_VALID(p) ((p) != nullptr && (p)->IsValid())
 #define CRON_TIME_GET_ERROR(p) ((p) == nullptr ? "nullptr" : (p)->GetError())
 
 	class CronTime {
 	public:
 		CronTime(const std::string& time_string) {
-			second_ = minute_ = hour_ = day_of_month_ = month_ = day_of_week_ = year_ = nullptr;
-
 			std::vector<std::string> v;
 			Text::SplitStr(v, time_string, ' ');
 			if (v.size() != 7)
@@ -208,23 +211,13 @@ namespace CronTimer {
 			const std::string& day_of_week = v[5];
 			const std::string& year = v[6];
 
-			second_ = new CronExpression(second, CronExpression::DT_SECOND);
-			minute_ = new CronExpression(minute, CronExpression::DT_MINUTE);
-			hour_ = new CronExpression(hour, CronExpression::DT_HOUR);
-			day_of_month_ = new CronExpression(day_of_month, CronExpression::DT_DAY_OF_MONTH);
-			month_ = new CronExpression(month, CronExpression::DT_MONTH);
-			day_of_week_ = new CronExpression(day_of_week, CronExpression::DT_DAY_OF_WEEK);
-			year_ = new CronExpression(year, CronExpression::DT_YEAR);
-		}
-
-		~CronTime() {
-			CRON_TIME_SAFE_DELETE(second_);
-			CRON_TIME_SAFE_DELETE(minute_);
-			CRON_TIME_SAFE_DELETE(hour_);
-			CRON_TIME_SAFE_DELETE(day_of_month_);
-			CRON_TIME_SAFE_DELETE(month_);
-			CRON_TIME_SAFE_DELETE(day_of_week_);
-			CRON_TIME_SAFE_DELETE(year_);
+			second_ = std::make_shared<CronExpression>(second, CronExpression::DT_SECOND);
+			minute_ = std::make_shared<CronExpression>(minute, CronExpression::DT_MINUTE);
+			hour_ = std::make_shared<CronExpression>(hour, CronExpression::DT_HOUR);
+			day_of_month_ = std::make_shared<CronExpression>(day_of_month, CronExpression::DT_DAY_OF_MONTH);
+			month_ = std::make_shared<CronExpression>(month, CronExpression::DT_MONTH);
+			day_of_week_ = std::make_shared<CronExpression>(day_of_week, CronExpression::DT_DAY_OF_WEEK);
+			year_ = std::make_shared<CronExpression>(year, CronExpression::DT_YEAR);
 		}
 
 		bool IsValid() const {
@@ -266,48 +259,40 @@ namespace CronTimer {
 		}
 
 	private:
-		CronExpression* second_;
-		CronExpression* minute_;
-		CronExpression* hour_;
-		CronExpression* day_of_month_;
-		CronExpression* month_;
-		CronExpression* day_of_week_;
-		CronExpression* year_;
+		std::shared_ptr<CronExpression> second_;
+		std::shared_ptr<CronExpression> minute_;
+		std::shared_ptr<CronExpression> hour_;
+		std::shared_ptr<CronExpression> day_of_month_;
+		std::shared_ptr<CronExpression> month_;
+		std::shared_ptr<CronExpression> day_of_week_;
+		std::shared_ptr<CronExpression> year_;
 	};
 
-	typedef std::function<void()> CRON_FUNC_CALLBACK;
+	using CRON_FUNC_CALLBACK = std::function<void()>;
 
-	class TimerMgr {
+	class TimerMgr : public Singleton <TimerMgr> {
 	public:
-		TimerMgr() : latest_timer_id_(0), thread_(nullptr), thread_stop_(false), last_proc(0) {};
+		TimerMgr() : latest_timer_id_(0), thread_stop_(false), last_proc_(0) {};
 		~TimerMgr() { Stop(); };
 
 		void Start() {
-			last_proc = time(nullptr);
-			thread_ = new std::thread([this]() {this->ThreadProc(); });
+			last_proc_ = time(nullptr);
+			thread_ = std::make_shared<std::thread>([this]() {this->ThreadProc(); });
 		}
 
 		void Stop() {
 			if (thread_ != nullptr) {
 				thread_stop_ = true;
 				thread_->join();
-				delete thread_;
 				thread_ = nullptr;
-			}
-
-			for (auto t : cron_timers_) {
-				TimerUnit* p = t;
-				delete p;
 			}
 
 			cron_timers_.clear();
 		}
 
 		int AddTimer(const std::string& timer_string, const CRON_FUNC_CALLBACK& func) {
-			TimerUnit* timer_ptr = new TimerUnit(latest_timer_id_ + 1, timer_string, func);
-
+			auto timer_ptr = std::make_shared<TimerUnit>(latest_timer_id_ + 1, timer_string, func);
 			if (!timer_ptr->cron_time.IsValid()) {
-				delete timer_ptr;
 				return 0;
 			}
 
@@ -320,20 +305,17 @@ namespace CronTimer {
 		bool RemoveTimer(int timer_id) {
 			std::unique_lock<std::mutex> lock(mutex_timers_);
 			for (auto it = cron_timers_.begin(); it != cron_timers_.end();) {
-				TimerUnit* cron_timer = *it;
+				auto cron_timer = *it;
 				if (cron_timer->timer_id == timer_id) {
-					delete cron_timer;
 					it = cron_timers_.erase(it);
 					return true;
 				}
-
 				++it;
 			}
-
 			return false;
 		}
 
-		void Update() {
+		int Update() {
 			std::list<CRON_FUNC_CALLBACK> tmp_callbacks;
 			do {
 				std::unique_lock<std::mutex> lock(mutex_callbacks_);
@@ -345,6 +327,7 @@ namespace CronTimer {
 			for (const auto& func : tmp_callbacks) {
 				func();
 			}
+			return (int)tmp_callbacks.size();
 		}
 
 	private:
@@ -361,12 +344,12 @@ namespace CronTimer {
 		void ThreadProc() {
 			while (!thread_stop_) {
 				time_t time_now = time(nullptr);
-				if (time_now == last_proc) {
-					std::this_thread::sleep_for(std::chrono::milliseconds(1));
+				if (time_now == last_proc_) {
+					std::this_thread::sleep_for(std::chrono::milliseconds(10));
 					continue;
 				}
 
-				last_proc = time_now;
+				last_proc_ = time_now;
 
 				do {
 					std::unique_lock<std::mutex> lock(mutex_timers_);
@@ -382,14 +365,14 @@ namespace CronTimer {
 
 	private:
 		mutable std::mutex mutex_timers_;
-		std::list<TimerUnit*> cron_timers_;
+		std::list<std::shared_ptr<TimerUnit>> cron_timers_;
 
 		mutable std::mutex mutex_callbacks_;
 		std::list<CRON_FUNC_CALLBACK> callbacks_;
 
 		int latest_timer_id_;
-		std::thread* thread_;
+		std::shared_ptr<std::thread> thread_;
 		volatile bool thread_stop_;
-		time_t last_proc;
+		time_t last_proc_;
 	};
 }

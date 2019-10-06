@@ -1,8 +1,4 @@
-﻿// CronTimerTest.cpp : 定义控制台应用程序的入口点。
-//
-
-#include "stdafx.h"
-#include "cron_timer_mgr.h"
+﻿#include "../include/cron_timer_mgr.h"
 
 void on_1_second_timer()
 {
