@@ -6,6 +6,7 @@
 #include <sstream>
 #include <thread>
 #include <mutex>
+#include <functional>
 
 namespace CronTimer {
 	class Text {
