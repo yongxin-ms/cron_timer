@@ -7,6 +7,7 @@
 #include <thread>
 #include <mutex>
 #include <functional>
+#include <atomic>
 
 namespace CronTimer {
 	class Text {
@@ -371,7 +372,7 @@ namespace CronTimer {
 
 		int latest_timer_id_ = 0;
 		std::shared_ptr<std::thread> thread_;
-		volatile bool thread_stop_ = false;
+		std::atomic_bool thread_stop_ = false;
 		time_t last_proc_ = 0;
 	};
 }
