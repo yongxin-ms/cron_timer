@@ -277,6 +277,7 @@ namespace CronTimer {
 
 		void Start() {
 			last_proc_ = time(nullptr);
+			thread_stop_ = false;
 			thread_ = std::make_shared<std::thread>([this]() {this->ThreadProc(); });
 		}
 
@@ -372,7 +373,7 @@ namespace CronTimer {
 
 		int latest_timer_id_ = 0;
 		std::shared_ptr<std::thread> thread_;
-		std::atomic_bool thread_stop_ = false;
+		std::atomic_bool thread_stop_;
 		time_t last_proc_ = 0;
 	};
 }
