@@ -71,3 +71,4 @@ IndentCaseLabels: false
 #tab键盘的宽度
 TabWidth: 4
 UseTab: Always
+AlwaysBreakTemplateDeclarations: true
