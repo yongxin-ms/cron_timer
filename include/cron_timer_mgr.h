@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 #include <set>
 #include <list>
@@ -96,7 +96,8 @@ public:
 			int to = v[1];
 			std::pair<int, int> pair_range = GetRangeFromType(data_type);
 			if (from < pair_range.first || to > pair_range.second) {
-				error_ << "out of range from:" << from << ", to:" << to << ", data_type:" << data_type;
+				error_ << "out of range from:" << from << ", to:" << to
+					   << ", data_type:" << data_type;
 				return;
 			}
 
@@ -115,7 +116,8 @@ public:
 			int interval = v[1];
 			std::pair<int, int> pair_range = GetRangeFromType(data_type);
 			if (from < pair_range.first || interval < 0) {
-				error_ << "out of range from:" << from << ", interval:" << interval << ", data_type:" << data_type;
+				error_ << "out of range from:" << from << ", interval:" << interval
+					   << ", data_type:" << data_type;
 				return;
 			}
 
@@ -213,15 +215,18 @@ public:
 		second_ = std::make_shared<CronExpression>(second, CronExpression::DT_SECOND);
 		minute_ = std::make_shared<CronExpression>(minute, CronExpression::DT_MINUTE);
 		hour_ = std::make_shared<CronExpression>(hour, CronExpression::DT_HOUR);
-		day_of_month_ = std::make_shared<CronExpression>(day_of_month, CronExpression::DT_DAY_OF_MONTH);
+		day_of_month_ =
+			std::make_shared<CronExpression>(day_of_month, CronExpression::DT_DAY_OF_MONTH);
 		month_ = std::make_shared<CronExpression>(month, CronExpression::DT_MONTH);
-		day_of_week_ = std::make_shared<CronExpression>(day_of_week, CronExpression::DT_DAY_OF_WEEK);
+		day_of_week_ =
+			std::make_shared<CronExpression>(day_of_week, CronExpression::DT_DAY_OF_WEEK);
 		year_ = std::make_shared<CronExpression>(year, CronExpression::DT_YEAR);
 	}
 
 	bool IsValid() const {
-		return (CRON_TIME_IS_VALID(second_) && CRON_TIME_IS_VALID(minute_) && CRON_TIME_IS_VALID(hour_) &&
-				CRON_TIME_IS_VALID(day_of_month_) && CRON_TIME_IS_VALID(month_) && CRON_TIME_IS_VALID(day_of_week_) &&
+		return (CRON_TIME_IS_VALID(second_) && CRON_TIME_IS_VALID(minute_) &&
+				CRON_TIME_IS_VALID(hour_) && CRON_TIME_IS_VALID(day_of_month_) &&
+				CRON_TIME_IS_VALID(month_) && CRON_TIME_IS_VALID(day_of_week_) &&
 				CRON_TIME_IS_VALID(year_));
 	}
 
@@ -233,8 +238,8 @@ public:
 		::localtime_r(&t, &_tm);
 #endif
 		return second_->Hit(_tm.tm_sec) && minute_->Hit(_tm.tm_min) && hour_->Hit(_tm.tm_hour) &&
-			   day_of_month_->Hit(_tm.tm_mday) && month_->Hit(_tm.tm_mon + 1) && day_of_week_->Hit(_tm.tm_wday) &&
-			   year_->Hit(_tm.tm_year + 1900);
+			   day_of_month_->Hit(_tm.tm_mday) && month_->Hit(_tm.tm_mon + 1) &&
+			   day_of_week_->Hit(_tm.tm_wday) && year_->Hit(_tm.tm_year + 1900);
 	}
 
 	std::string GetError() const {
@@ -323,7 +328,8 @@ public:
 
 private:
 	struct TimerUnit {
-		TimerUnit(int timer_id_r, const std::string& timer_string_r, const CRON_FUNC_CALLBACK& func_r)
+		TimerUnit(
+			int timer_id_r, const std::string& timer_string_r, const CRON_FUNC_CALLBACK& func_r)
 			: timer_id(timer_id_r)
 			, timer_string(timer_string_r)
 			, func(func_r)
