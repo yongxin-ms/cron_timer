@@ -10,6 +10,16 @@
 #include <atomic>
 
 namespace CronTimer {
+class noncopyable {
+protected:
+	noncopyable() = default;
+	~noncopyable() = default;
+
+private:
+	noncopyable(const noncopyable&) = delete;
+	const noncopyable& operator=(const noncopyable&) = delete;
+};
+
 class Text {
 public:
 	static size_t SplitStr(std::vector<std::string>& os, const std::string& is, const char c) {
@@ -266,7 +276,7 @@ private:
 
 using CRON_FUNC_CALLBACK = std::function<void()>;
 
-class TimerMgr {
+class TimerMgr : public noncopyable {
 public:
 	~TimerMgr() { Stop(); };
 
@@ -293,13 +303,13 @@ public:
 		}
 
 		++latest_timer_id_;
-		std::unique_lock<std::mutex> lock(mutex_timers_);
+		std::lock_guard<std::mutex> lock(mutex_timers_);
 		cron_timers_.push_back(timer_ptr);
 		return timer_ptr->timer_id;
 	}
 
 	bool RemoveTimer(int timer_id) {
-		std::unique_lock<std::mutex> lock(mutex_timers_);
+		std::lock_guard<std::mutex> lock(mutex_timers_);
 		for (auto it = cron_timers_.begin(); it != cron_timers_.end();) {
 			auto cron_timer = *it;
 			if (cron_timer->timer_id == timer_id) {
@@ -314,7 +324,7 @@ public:
 	int Update() {
 		std::list<CRON_FUNC_CALLBACK> tmp_callbacks;
 		do {
-			std::unique_lock<std::mutex> lock(mutex_callbacks_);
+			std::lock_guard<std::mutex> lock(mutex_callbacks_);
 			if (!callbacks_.empty()) {
 				tmp_callbacks.swap(callbacks_);
 			}
@@ -352,10 +362,10 @@ private:
 			last_proc_ = time_now;
 
 			do {
-				std::unique_lock<std::mutex> lock(mutex_timers_);
+				std::lock_guard<std::mutex> lock(mutex_timers_);
 				for (const auto& cron_timer : cron_timers_) {
 					if (cron_timer->cron_time.Hit(time_now)) {
-						std::unique_lock<std::mutex> lock(mutex_callbacks_);
+						std::lock_guard<std::mutex> lock(mutex_callbacks_);
 						callbacks_.push_back(cron_timer->func);
 					}
 				}
