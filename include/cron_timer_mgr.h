@@ -3,6 +3,7 @@
 #include <set>
 #include <list>
 #include <vector>
+#include <unordered_map>
 #include <sstream>
 #include <thread>
 #include <mutex>
@@ -294,6 +295,7 @@ public:
 		}
 
 		cron_timers_.clear();
+		cron_timers_cache_.clear();
 	}
 
 	int AddTimer(
@@ -307,20 +309,23 @@ public:
 		++latest_timer_id_;
 		std::lock_guard<std::mutex> lock(mutex_timers_);
 		cron_timers_.push_back(timer_ptr);
+		auto it = cron_timers_.end();
+		it--;
+		cron_timers_cache_[timer_ptr->timer_id] = it;
+
 		return timer_ptr->timer_id;
 	}
 
 	bool RemoveTimer(int timer_id) {
 		std::lock_guard<std::mutex> lock(mutex_timers_);
-		for (auto it = cron_timers_.begin(); it != cron_timers_.end();) {
-			auto cron_timer = *it;
-			if (cron_timer->timer_id == timer_id) {
-				it = cron_timers_.erase(it);
-				return true;
-			}
-			++it;
-		}
-		return false;
+		auto it = cron_timers_cache_.find(timer_id);
+		if (it == cron_timers_cache_.end())
+			return false;
+
+		cron_timers_.erase(it->second);
+		cron_timers_cache_.erase(it);
+		
+		return true;
 	}
 
 	int Update() {
@@ -391,6 +396,7 @@ private:
 private:
 	mutable std::mutex mutex_timers_;
 	std::list<std::shared_ptr<TimerUnit>> cron_timers_;
+	std::unordered_map<int, std::list<std::shared_ptr<TimerUnit>>::const_iterator> cron_timers_cache_;
 
 	mutable std::mutex mutex_callbacks_;
 	std::list<CRON_FUNC_CALLBACK> callbacks_;
