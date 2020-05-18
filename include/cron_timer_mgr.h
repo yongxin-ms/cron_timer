@@ -296,8 +296,10 @@ public:
 		cron_timers_.clear();
 	}
 
-	int AddTimer(const std::string& timer_string, const CRON_FUNC_CALLBACK& func) {
-		auto timer_ptr = std::make_shared<TimerUnit>(latest_timer_id_ + 1, timer_string, func);
+	int AddTimer(
+		const std::string& timer_string, const CRON_FUNC_CALLBACK& func, int left_times = -1) {
+		auto timer_ptr =
+			std::make_shared<TimerUnit>(latest_timer_id_ + 1, timer_string, func, left_times);
 		if (!timer_ptr->cron_time.IsValid()) {
 			return 0;
 		}
@@ -338,17 +340,19 @@ public:
 
 private:
 	struct TimerUnit {
-		TimerUnit(
-			int timer_id_r, const std::string& timer_string_r, const CRON_FUNC_CALLBACK& func_r)
+		TimerUnit(int timer_id_r, const std::string& timer_string_r,
+			const CRON_FUNC_CALLBACK& func_r, int leftTimes)
 			: timer_id(timer_id_r)
 			, timer_string(timer_string_r)
 			, func(func_r)
-			, cron_time(timer_string) {}
+			, cron_time(timer_string)
+			, left_times(leftTimes) {}
 
 		int timer_id;
 		std::string timer_string;
 		CRON_FUNC_CALLBACK func;
 		CronTime cron_time;
+		int left_times;	//剩余次数，执行一次就减1，负数表示无穷多次
 	};
 
 	void ThreadProc() {
@@ -363,11 +367,22 @@ private:
 
 			do {
 				std::lock_guard<std::mutex> lock(mutex_timers_);
-				for (const auto& cron_timer : cron_timers_) {
+				for (auto it = cron_timers_.begin(); it != cron_timers_.end();) {
+					auto cron_timer = *it;
+					if (cron_timer->left_times == 0) {
+						it = cron_timers_.erase(it);
+						continue;
+					}
+
 					if (cron_timer->cron_time.Hit(time_now)) {
+						if (cron_timer->left_times > 0)
+							cron_timer->left_times--;
+
 						std::lock_guard<std::mutex> lock(mutex_callbacks_);
 						callbacks_.push_back(cron_timer->func);
 					}
+
+					it++;
 				}
 			} while (false);
 		}
