@@ -353,10 +353,10 @@ private:
 			, cron_time(timer_string)
 			, left_times(leftTimes) {}
 
-		int timer_id;
-		std::string timer_string;
-		CRON_FUNC_CALLBACK func;
-		CronTime cron_time;
+		const int timer_id;
+		const std::string timer_string;
+		const CRON_FUNC_CALLBACK func;
+		const CronTime cron_time;
 		int left_times;	//剩余次数，执行一次就减1，负数表示无穷多次
 	};
 
