@@ -11,7 +11,7 @@
 #include "../include/cron_timer_mgr.h"
 
 
-std::atomic_bool _shutDown = false;
+std::atomic_bool _shutDown;
 
 #ifdef _WIN32
 BOOL WINAPI ConsoleHandler(DWORD CtrlType) {
@@ -33,7 +33,7 @@ BOOL WINAPI ConsoleHandler(DWORD CtrlType) {
 void signal_hander(int signo) //自定义一个函数处理信号
 {
 	printf("catch a signal:%d\n:", signo);
-	App::Instance()->ShutDown();
+	_shutDown = true;
 }
 #endif
 

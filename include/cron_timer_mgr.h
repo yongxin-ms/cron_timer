@@ -396,7 +396,7 @@ private:
 private:
 	mutable std::mutex mutex_timers_;
 	std::list<std::shared_ptr<TimerUnit>> cron_timers_;
-	std::unordered_map<int, std::list<std::shared_ptr<TimerUnit>>::const_iterator> cron_timers_cache_;
+	std::unordered_map<int, std::list<std::shared_ptr<TimerUnit>>::iterator> cron_timers_cache_;
 
 	mutable std::mutex mutex_callbacks_;
 	std::list<CRON_FUNC_CALLBACK> callbacks_;
