@@ -328,21 +328,6 @@ public:
 		return true;
 	}
 
-	int Update() {
-		std::list<CRON_FUNC_CALLBACK> tmp_callbacks;
-		do {
-			std::lock_guard<std::mutex> lock(mutex_callbacks_);
-			if (!callbacks_.empty()) {
-				tmp_callbacks.swap(callbacks_);
-			}
-		} while (false);
-
-		for (const auto& func : tmp_callbacks) {
-			func();
-		}
-		return (int)tmp_callbacks.size();
-	}
-
 private:
 	struct TimerUnit {
 		TimerUnit(int timer_id_r, const std::string& timer_string_r,
@@ -383,8 +368,7 @@ private:
 						if (cron_timer->left_times > 0)
 							cron_timer->left_times--;
 
-						std::lock_guard<std::mutex> lock(mutex_callbacks_);
-						callbacks_.push_back(cron_timer->func);
+						cron_timer->func();
 					}
 
 					it++;
@@ -397,9 +381,6 @@ private:
 	mutable std::mutex mutex_timers_;
 	std::list<std::shared_ptr<TimerUnit>> cron_timers_;
 	std::unordered_map<int, std::list<std::shared_ptr<TimerUnit>>::iterator> cron_timers_cache_;
-
-	mutable std::mutex mutex_callbacks_;
-	std::list<CRON_FUNC_CALLBACK> callbacks_;
 
 	int latest_timer_id_ = 0;
 	std::shared_ptr<std::thread> thread_;

@@ -70,10 +70,7 @@ int main() {
 		"30-34 * * * * * *", [](void) { printf("timer hit at 30s, 31s, 32s, 33s, 34s\n"); });
 
 	while (!_shutDown) {
-		cron_timer_mgr->Update();
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
-		cron_timer_mgr->RemoveTimer(timer3);
 	}
 
 	cron_timer_mgr->RemoveTimer(timer1);
