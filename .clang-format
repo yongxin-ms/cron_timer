@@ -15,7 +15,7 @@ AlignOperands: true
 # 对齐连续的尾随的注释
 AlignTrailingComments: true
 # 允许函数声明的所有参数在放在下一行
-AllowAllParametersOfDeclarationOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: false
 # 允许短的块放在同一行
 AllowShortBlocksOnASingleLine: true
 # 允许短的case标签放在同一行
@@ -29,7 +29,7 @@ AllowShortLoopsOnASingleLine: false
 # 总是在定义返回类型后换行(deprecated)
 AlwaysBreakAfterDefinitionReturnType: None
 # 每行字符的限制，0表示没有限制
-ColumnLimit: 100
+ColumnLimit: 120
 # 描述具有特殊意义的注释的正则表达式，它不应该被分割为多行或以其它方式改变
 CommentPragmas: '^ IWYU pragma:'
 # 语言: None Cpp Java Objc Protp
@@ -72,3 +72,7 @@ IndentCaseLabels: false
 TabWidth: 4
 UseTab: Always
 AlwaysBreakTemplateDeclarations: true
+# 在尾随的评论前添加的空格数(只适用于//)
+SpacesBeforeTrailingComments: 1
+# true 自动检测补全命名空间尾部的大括号
+FixNamespaceComments: true
