@@ -133,7 +133,7 @@ public:
 				return false;
 			}
 
-			for (int i = 0; i <= to; i++) {
+			for (int i = from; i <= to; i++) {
 				values.push_back(i);
 			}
 		} else if (input.find_first_of(CRON_SEPERATOR_INTERVAL) != std::string::npos) {
@@ -331,8 +331,13 @@ public:
 		return insert(p);
 	}
 
-	void Update() {
+	size_t Update() {
 		time_t time_now = time(nullptr);
+		size_t count = 0;
+		if (time_now == last_proc_)
+			return 0;
+
+		last_proc_ = time_now;
 		while (!cron_timers_.empty()) {
 			auto& first = *cron_timers_.begin();
 			auto expire_time = first.first;
@@ -344,10 +349,12 @@ public:
 			while (!timer_list.empty()) {
 				auto p = *timer_list.begin();
 				p->DoFunc();
+				++count;
 			}
 
 			cron_timers_.erase(cron_timers_.begin());
 		}
+		return count;
 	}
 
 private:
@@ -381,6 +388,7 @@ private:
 
 private:
 	std::map<time_t, std::list<std::shared_ptr<CronTimer>>> cron_timers_;
+	time_t last_proc_ = 0;
 };
 
 void CronTimer::Cancel() {
