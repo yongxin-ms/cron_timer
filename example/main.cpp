@@ -57,10 +57,10 @@ void TestCronTimer() {
 	timer_mgr->AddTimer("30-34 * * * * *", [](void) { printf("cron timer hit at 30s, 31s, 32s, 33s, 34s\n"); });
 
 	// 3秒钟之后执行
-	auto timer6 = timer_mgr->AddTimer(3, [](void) { printf("3 second delay timer hit\n"); });
+	auto timer = timer_mgr->AddTimer(3, [](void) { printf("3 second delay timer hit\n"); });
 
 	// 中途可以取消
-	timer6->Cancel();
+	timer->Cancel();
 
 	// 10秒钟之后执行
 	timer_mgr->AddTimer(

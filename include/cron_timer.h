@@ -13,31 +13,34 @@
 	std::unique_ptr<cron_timer::TimerMgr> timer_mgr = std::make_unique<cron_timer::TimerMgr>();
 
 	// 1秒钟执行一次的定时器
-	auto timer1 = timer_mgr->AddTimer("* * * * * *", [](void) { printf("1 second timer hit\n"); });
+	timer_mgr->AddTimer("* * * * * *", [](void) { printf("1 second cron timer hit\n"); });
 
 	//从0秒开始，每3秒钟执行一次的定时器
-	auto timer2 = timer_mgr->AddTimer("0/3 * * * * *", [](void) { printf("3 second timer hit\n"); });
+	timer_mgr->AddTimer("0/3 * * * * *", [](void) { printf("3 second cron timer hit\n"); });
 
 	// 1分钟执行一次（每次都在0秒的时候执行）的定时器
-	auto timer3 = timer_mgr->AddTimer("0 * * * * *", [](void) { printf("1 minute timer hit\n"); });
+	timer_mgr->AddTimer("0 * * * * *", [](void) { printf("1 minute cron timer hit\n"); });
 
 	//指定时间点执行的定时器
-	auto timer4 = timer_mgr->AddTimer("15;30;50 * * * * *", [](void) { printf("timer hit at 15s or 30s or 50s\n"); });
+	timer_mgr->AddTimer("15;30;50 * * * * *", [](void) { printf("cron timer hit at 15s or 30s or 50s\n"); });
 
 	//指定时间段执行的定时器
-	auto timer5 =
-		timer_mgr->AddTimer("30-34 * * * * *", [](void) { printf("timer hit at 30s, 31s, 32s, 33s, 34s\n"); });
+	timer_mgr->AddTimer("30-34 * * * * *", [](void) { printf("cron timer hit at 30s, 31s, 32s, 33s, 34s\n"); });
+
+	// 3秒钟之后执行
+	auto timer = timer_mgr->AddTimer(3, [](void) { printf("3 second delay timer hit\n"); });
+
+	// 中途可以取消
+	timer->Cancel();
+
+	// 10秒钟之后执行
+	timer_mgr->AddTimer(
+		10, [](void) { printf("10 second delay timer hit\n"); }, 3);
 
 	while (!_shutDown) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 		timer_mgr->Update();
 	}
-
-	timer1->Cancel();
-	timer2->Cancel();
-	timer3->Cancel();
-	timer4->Cancel();
-	timer5->Cancel();
 */
 
 namespace cron_timer {
