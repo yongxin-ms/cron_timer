@@ -1,53 +1,51 @@
 ﻿#pragma once
 #include <string>
-#include <set>
 #include <list>
 #include <vector>
-#include <unordered_map>
-#include <sstream>
+#include <map>
 #include <thread>
 #include <mutex>
 #include <functional>
 #include <atomic>
 
 /*
-	std::shared_ptr<CronTimer::TimerMgr> cron_timer_mgr = std::make_shared<CronTimer::TimerMgr>();
+	std::shared_ptr<cron_timer::TimerMgr> cron_timer_mgr = std::make_shared<cron_timer::TimerMgr>();
 	cron_timer_mgr->Start();
 
 	// 1秒钟执行一次的定时器
 	auto timer1 =
-		cron_timer_mgr->AddTimer("* * * * * * *", [](void) { printf("1 second timer hit\n"); });
+		cron_timer_mgr->AddTimer("* * * * * *", [](void) { printf("1 second timer hit\n"); });
 
 	//从0秒开始，每3秒钟执行一次的定时器
 	auto timer2 =
-		cron_timer_mgr->AddTimer("0/3 * * * * * *", [](void) { printf("3 second timer hit\n"); });
+		cron_timer_mgr->AddTimer("0/3 * * * * *", [](void) { printf("3 second timer hit\n"); });
 
 	// 1分钟执行一次（每次都在0秒的时候执行）的定时器
 	auto timer3 =
-		cron_timer_mgr->AddTimer("0 * * * * * *", [](void) { printf("1 minute timer hit\n"); });
+		cron_timer_mgr->AddTimer("0 * * * * *", [](void) { printf("1 minute timer hit\n"); });
 
 	//指定时间点执行的定时器
 	auto timer4 = cron_timer_mgr->AddTimer(
-		"15;30;50 * * * * * *", [](void) { printf("timer hit at 15s or 30s or 50s\n"); });
+		"15;30;50 * * * * *", [](void) { printf("timer hit at 15s or 30s or 50s\n"); });
 
 	//指定时间段执行的定时器
 	auto timer5 = cron_timer_mgr->AddTimer(
-		"30-34 * * * * * *", [](void) { printf("timer hit at 30s, 31s, 32s, 33s, 34s\n"); });
+		"30-34 * * * * *", [](void) { printf("timer hit at 30s, 31s, 32s, 33s, 34s\n"); });
 
 	while (!_shutDown) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
 
-	cron_timer_mgr->RemoveTimer(timer1);
-	cron_timer_mgr->RemoveTimer(timer2);
-	cron_timer_mgr->RemoveTimer(timer3);
-	cron_timer_mgr->RemoveTimer(timer4);
-	cron_timer_mgr->RemoveTimer(timer5);
+	timer1->Cancel();
+	timer2->Cancel();
+	timer3->Cancel();
+	timer4->Cancel();
+	timer5->Cancel();
 
 	cron_timer_mgr->Stop();
 */
 
-namespace CronTimer {
+namespace cron_timer {
 class noncopyable {
 protected:
 	noncopyable() = default;
@@ -98,16 +96,16 @@ public:
 class CronExpression {
 public:
 	enum DATA_TYPE {
-		DT_SECOND = 1,
-		DT_MINUTE = 2,
-		DT_HOUR = 3,
-		DT_DAY_OF_MONTH = 4,
-		DT_MONTH = 5,
-		DT_DAY_OF_WEEK = 6,
-		DT_YEAR = 7,
+		DT_SECOND = 0,
+		DT_MINUTE = 1,
+		DT_HOUR = 2,
+		DT_DAY_OF_MONTH = 3,
+		DT_MONTH = 4,
+		DT_YEAR = 5,
+		DT_MAX,
 	};
 
-	CronExpression(const std::string& input, DATA_TYPE data_type) {
+	static bool GetValues(const std::string& input, DATA_TYPE data_type, std::vector<int>& values) {
 
 		//
 		// 注意：枚举之前是','，为了能在csv中使用改成了';'
@@ -118,84 +116,71 @@ public:
 		static const char CRON_SEPERATOR_RANGE = '-';
 		static const char CRON_SEPERATOR_INTERVAL = '/';
 
-		is_all_ = false;
 		if (input == "*") {
-			is_all_ = true;
+			auto pair_range = GetRangeFromType(data_type);
+			for (auto i = pair_range.first; i <= pair_range.second; ++i) {
+				values.push_back(i);
+			}
 		} else if (input.find_first_of(CRON_SEPERATOR_ENUM) != std::string::npos) {
+			//枚举
 			std::vector<int> v;
 			Text::SplitInt(v, input, CRON_SEPERATOR_ENUM);
 			std::pair<int, int> pair_range = GetRangeFromType(data_type);
 			for (auto value : v) {
 				if (value < pair_range.first || value > pair_range.second) {
-					error_ << "out of range ,value:" << value << ", data_type:" << data_type;
-					return;
+					return false;
 				}
-				values_.insert(value);
+				values.push_back(value);
 			}
 		} else if (input.find_first_of(CRON_SEPERATOR_RANGE) != std::string::npos) {
+			//范围
 			std::vector<int> v;
 			Text::SplitInt(v, input, CRON_SEPERATOR_RANGE);
 			if (v.size() != 2) {
-				error_ << "time format error:" << input;
-				return;
+				return false;
 			}
 
 			int from = v[0];
 			int to = v[1];
 			std::pair<int, int> pair_range = GetRangeFromType(data_type);
 			if (from < pair_range.first || to > pair_range.second) {
-				error_ << "out of range from:" << from << ", to:" << to << ", data_type:" << data_type;
-				return;
+				return false;
 			}
 
 			for (int i = 0; i <= to; i++) {
-				values_.insert(i);
+				values.push_back(i);
 			}
 		} else if (input.find_first_of(CRON_SEPERATOR_INTERVAL) != std::string::npos) {
+			//间隔
 			std::vector<int> v;
 			Text::SplitInt(v, input, CRON_SEPERATOR_INTERVAL);
 			if (v.size() != 2) {
-				error_ << "time format error:" << input;
-				return;
+				return false;
 			}
 
 			int from = v[0];
 			int interval = v[1];
 			std::pair<int, int> pair_range = GetRangeFromType(data_type);
 			if (from < pair_range.first || interval < 0) {
-				error_ << "out of range from:" << from << ", interval:" << interval << ", data_type:" << data_type;
-				return;
+				return false;
 			}
 
 			for (int i = from; i <= pair_range.second; i += interval) {
-				values_.insert(i);
+				values.push_back(i);
 			}
 		} else {
+			//具体数值
 			std::pair<int, int> pair_range = GetRangeFromType(data_type);
 			int value = atoi(input.data());
 			if (value < pair_range.first || value > pair_range.second) {
-				error_ << "out of range from:" << pair_range.first << ", to:" << pair_range.second
-					   << ", data_type:" << data_type;
-				return;
+				return false;
 			}
 
-			values_.insert(value);
+			values.push_back(value);
 		}
-	}
 
-	bool IsValid() const {
-		if (is_all_)
-			return true;
-		return !values_.empty();
+		return values.size() > 0;
 	}
-
-	bool Hit(int value) const {
-		if (is_all_)
-			return true;
-		return values_.find(value) != values_.end();
-	}
-
-	std::string GetError() const { return error_.str(); }
 
 private:
 	static std::pair<int, int> GetRangeFromType(DATA_TYPE data_type) {
@@ -220,10 +205,6 @@ private:
 			from = 1;
 			to = 12;
 			break;
-		case CronExpression::DT_DAY_OF_WEEK:
-			from = 0;
-			to = 6;
-			break;
 		case CronExpression::DT_YEAR:
 			from = 1970;
 			to = 2099;
@@ -232,84 +213,108 @@ private:
 
 		return std::make_pair(from, to);
 	}
-
-private:
-	bool is_all_;
-	std::set<int> values_;
-	std::ostringstream error_;
 };
 
-#define CRON_TIME_IS_VALID(p) ((p) != nullptr && (p)->IsValid())
-#define CRON_TIME_GET_ERROR(p) ((p) == nullptr ? "nullptr" : (p)->GetError())
+struct Wheel {
+	Wheel()
+		: cur_index(0) {}
 
-class CronTime {
-public:
-	CronTime(const std::string& time_string) {
-		std::vector<std::string> v;
-		Text::SplitStr(v, time_string, ' ');
-		if (v.size() != 7)
-			return;
+	//返回值：是否有进位
+	bool init(int init_value) {
+		for (size_t i = cur_index; i < values.size(); ++i) {
+			if (values[i] >= init_value) {
+				cur_index = i;
+				return false;
+			}
+		}
 
-		const std::string& second = v[0];
-		const std::string& minute = v[1];
-		const std::string& hour = v[2];
-		const std::string& day_of_month = v[3];
-		const std::string& month = v[4];
-		const std::string& day_of_week = v[5];
-		const std::string& year = v[6];
-
-		second_ = std::make_shared<CronExpression>(second, CronExpression::DT_SECOND);
-		minute_ = std::make_shared<CronExpression>(minute, CronExpression::DT_MINUTE);
-		hour_ = std::make_shared<CronExpression>(hour, CronExpression::DT_HOUR);
-		day_of_month_ = std::make_shared<CronExpression>(day_of_month, CronExpression::DT_DAY_OF_MONTH);
-		month_ = std::make_shared<CronExpression>(month, CronExpression::DT_MONTH);
-		day_of_week_ = std::make_shared<CronExpression>(day_of_week, CronExpression::DT_DAY_OF_WEEK);
-		year_ = std::make_shared<CronExpression>(year, CronExpression::DT_YEAR);
+		cur_index = 0;
+		return true;
 	}
 
-	bool IsValid() const {
-		return (CRON_TIME_IS_VALID(second_) && CRON_TIME_IS_VALID(minute_) && CRON_TIME_IS_VALID(hour_) &&
-				CRON_TIME_IS_VALID(day_of_month_) && CRON_TIME_IS_VALID(month_) && CRON_TIME_IS_VALID(day_of_week_) &&
-				CRON_TIME_IS_VALID(year_));
-	}
-
-	bool Hit(time_t t) const {
-		tm _tm;
-#ifdef _WIN32
-		::localtime_s(&_tm, &t);
-#else
-		::localtime_r(&t, &_tm);
-#endif
-		return second_->Hit(_tm.tm_sec) && minute_->Hit(_tm.tm_min) && hour_->Hit(_tm.tm_hour) &&
-			   day_of_month_->Hit(_tm.tm_mday) && month_->Hit(_tm.tm_mon + 1) && day_of_week_->Hit(_tm.tm_wday) &&
-			   year_->Hit(_tm.tm_year + 1900);
-	}
-
-	std::string GetError() const {
-		std::string error;
-		error += "second_" + CRON_TIME_GET_ERROR(second_);
-		error += "minute_" + CRON_TIME_GET_ERROR(minute_);
-		error += "hour_" + CRON_TIME_GET_ERROR(hour_);
-		error += "day_of_month_" + CRON_TIME_GET_ERROR(day_of_month_);
-		error += "month_" + CRON_TIME_GET_ERROR(month_);
-		error += "day_of_week_" + CRON_TIME_GET_ERROR(day_of_week_);
-		error += "year_" + CRON_TIME_GET_ERROR(year_);
-		return error;
-	}
-
-private:
-	std::shared_ptr<CronExpression> second_;
-	std::shared_ptr<CronExpression> minute_;
-	std::shared_ptr<CronExpression> hour_;
-	std::shared_ptr<CronExpression> day_of_month_;
-	std::shared_ptr<CronExpression> month_;
-	std::shared_ptr<CronExpression> day_of_week_;
-	std::shared_ptr<CronExpression> year_;
+	size_t cur_index;
+	std::vector<int> values;
 };
 
+class TimerMgr;
 using CRON_FUNC_CALLBACK = std::function<void()>;
 
+class CronTimer : public std::enable_shared_from_this<CronTimer> {
+	friend class TimerMgr;
+
+public:
+	CronTimer(TimerMgr& owner, const std::vector<Wheel>& wheels, const CRON_FUNC_CALLBACK& func)
+		: owner_(owner)
+		, wheels_(wheels)
+		, func_(func) {
+		tm local_tm;
+		time_t time_now = time(nullptr);
+		localtime_s(&local_tm, &time_now);
+
+		std::vector<int> init_values;
+		init_values.push_back(local_tm.tm_sec);
+		init_values.push_back(local_tm.tm_min);
+		init_values.push_back(local_tm.tm_hour);
+		init_values.push_back(local_tm.tm_mday);
+		init_values.push_back(local_tm.tm_mon + 1);
+		init_values.push_back(local_tm.tm_year + 1900);
+
+		bool addup = false;
+		for (int i = 0; i < CronExpression::DT_MAX; i++) {
+			auto& wheel = wheels_[i];
+			auto init_value = addup ? init_values[i] + 1 : init_values[i];
+			addup = wheel.init(init_value);
+		}
+	}
+
+	void Cancel();
+
+private:
+	void SetIt(const std::list<std::shared_ptr<CronTimer>>::iterator& it) { it_ = it; }
+	std::list<std::shared_ptr<CronTimer>>::iterator& GetIt() { return it_; }
+
+	void DoFunc();
+
+	time_t GetCurTime() const {
+		tm next_tm;
+		next_tm.tm_sec = GetCurValue(CronExpression::DT_SECOND);
+		next_tm.tm_min = GetCurValue(CronExpression::DT_MINUTE);
+		next_tm.tm_hour = GetCurValue(CronExpression::DT_HOUR);
+		next_tm.tm_mday = GetCurValue(CronExpression::DT_DAY_OF_MONTH);
+		next_tm.tm_mon = GetCurValue(CronExpression::DT_MONTH) - 1;
+		next_tm.tm_year = GetCurValue(CronExpression::DT_YEAR) - 1900;
+
+		return mktime(&next_tm);
+	}
+
+private:
+	void Next(int data_type) {
+		if (data_type >= CronExpression::DT_MAX)
+			return;
+
+		auto& wheel = wheels_[data_type];
+		if (wheel.cur_index == wheel.values.size() - 1) {
+			wheel.cur_index = 0;
+			Next(data_type + 1);
+		} else {
+			++wheel.cur_index;
+		}
+	}
+
+	int GetCurValue(int data_type) const {
+		const auto& wheel = wheels_[data_type];
+		return wheel.values[wheel.cur_index];
+	}
+
+private:
+	TimerMgr& owner_;
+	std::vector<Wheel> wheels_;
+	const CRON_FUNC_CALLBACK func_;
+	std::list<std::shared_ptr<CronTimer>>::iterator it_;
+};
+
 class TimerMgr : public noncopyable {
+	friend class CronTimer;
 public:
 	~TimerMgr() { Stop(); };
 
@@ -327,53 +332,59 @@ public:
 		}
 
 		cron_timers_.clear();
-		cron_timers_cache_.clear();
 	}
 
-	int AddTimer(const std::string& timer_string, const CRON_FUNC_CALLBACK& func, int left_times = -1) {
-		auto timer_ptr = std::make_shared<TimerUnit>(latest_timer_id_ + 1, timer_string, func, left_times);
-		if (!timer_ptr->cron_time.IsValid()) {
-			return 0;
+	std::shared_ptr<CronTimer> AddTimer(const std::string& timer_string, const CRON_FUNC_CALLBACK& func) {
+		std::vector<std::string> v;
+		Text::SplitStr(v, timer_string, ' ');
+		if (v.size() != CronExpression::DT_MAX)
+			return nullptr;
+
+		std::vector<Wheel> wheels;
+		for (int i = 0; i < CronExpression::DT_MAX; i++) {
+			const auto& expression = v[i];
+			CronExpression::DATA_TYPE data_type = CronExpression::DATA_TYPE(i);
+			Wheel wheel;
+			if (!CronExpression::GetValues(expression, data_type, wheel.values)) {
+				return nullptr;
+			}
+
+			wheels.emplace_back(wheel);
 		}
 
-		++latest_timer_id_;
-		std::lock_guard<std::mutex> lock(mutex_timers_);
-		cron_timers_.push_back(timer_ptr);
-		auto it = cron_timers_.end();
-		it--;
-		cron_timers_cache_[timer_ptr->timer_id] = it;
-
-		return timer_ptr->timer_id;
+		auto p = std::make_shared<CronTimer>(*this, wheels, func);
+		return insert(p);
 	}
 
-	bool RemoveTimer(int timer_id) {
-		std::lock_guard<std::mutex> lock(mutex_timers_);
-		auto it = cron_timers_cache_.find(timer_id);
-		if (it == cron_timers_cache_.end())
+private:
+	std::shared_ptr<CronTimer> insert(std::shared_ptr<CronTimer> p) {
+		time_t t = p->GetCurTime();
+		auto it = cron_timers_.find(t);
+		if (it == cron_timers_.end()) {
+			std::list<std::shared_ptr<CronTimer>> l;
+			cron_timers_.insert(std::make_pair(t, l));
+			it = cron_timers_.find(t);
+		}
+
+		auto& l = it->second;
+		p->SetIt(l.insert(l.end(), p));
+		return p;
+	}
+
+	bool remove(std::shared_ptr<CronTimer> p) {
+		time_t t = p->GetCurTime();
+		auto it = cron_timers_.find(t);
+		if (it == cron_timers_.end()) {
 			return false;
+		}
 
-		cron_timers_.erase(it->second);
-		cron_timers_cache_.erase(it);
-
+		auto& l = it->second;
+		l.erase(p->GetIt());
+		p->SetIt(l.end());
 		return true;
 	}
 
 private:
-	struct TimerUnit {
-		TimerUnit(int timer_id_r, const std::string& timer_string_r, const CRON_FUNC_CALLBACK& func_r, int leftTimes)
-			: timer_id(timer_id_r)
-			, timer_string(timer_string_r)
-			, func(func_r)
-			, cron_time(timer_string)
-			, left_times(leftTimes) {}
-
-		const int timer_id;
-		const std::string timer_string;
-		const CRON_FUNC_CALLBACK func;
-		const CronTime cron_time;
-		int left_times; //剩余次数，执行一次就减1，负数表示无穷多次
-	};
-
 	void ThreadProc() {
 		while (!thread_stop_) {
 			time_t time_now = time(nullptr);
@@ -384,36 +395,43 @@ private:
 
 			last_proc_ = time_now;
 
-			do {
-				std::lock_guard<std::mutex> lock(mutex_timers_);
-				for (auto it = cron_timers_.begin(); it != cron_timers_.end();) {
-					auto cron_timer = *it;
-					if (cron_timer->left_times == 0) {
-						it = cron_timers_.erase(it);
-						continue;
-					}
-
-					if (cron_timer->cron_time.Hit(time_now)) {
-						if (cron_timer->left_times > 0)
-							cron_timer->left_times--;
-
-						cron_timer->func();
-					}
-
-					it++;
+			while (!cron_timers_.empty()) {
+				auto& first = *cron_timers_.begin();
+				auto expire_time = first.first;
+				auto& timer_list = first.second;
+				if (expire_time > time_now) {
+					break;
 				}
-			} while (false);
+
+				while (!timer_list.empty()) {
+					auto p = *timer_list.begin();
+					p->DoFunc();
+				}
+
+				cron_timers_.erase(cron_timers_.begin());
+			}
 		}
 	}
 
 private:
-	mutable std::mutex mutex_timers_;
-	std::list<std::shared_ptr<TimerUnit>> cron_timers_;
-	std::unordered_map<int, std::list<std::shared_ptr<TimerUnit>>::iterator> cron_timers_cache_;
+	std::map<time_t, std::list<std::shared_ptr<CronTimer>>> cron_timers_;
 
-	int latest_timer_id_ = 0;
 	std::shared_ptr<std::thread> thread_;
 	std::atomic_bool thread_stop_;
 	time_t last_proc_ = 0;
 };
-} // namespace CronTimer
+
+void CronTimer::Cancel() {
+	auto self = shared_from_this();
+	owner_.remove(self);
+}
+
+void CronTimer::DoFunc() {
+	func_();
+	auto self = shared_from_this();
+	owner_.remove(self);
+	Next(CronExpression::DT_SECOND);
+	owner_.insert(self);
+}
+
+} // namespace cron_timer
