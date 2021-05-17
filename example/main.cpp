@@ -1,5 +1,7 @@
 ﻿#include <stdio.h>
 #include <memory>
+#include <atomic>
+#include <thread>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -45,7 +47,6 @@ int main() {
 #endif
 
 	std::unique_ptr<cron_timer::TimerMgr> cron_timer_mgr = std::make_unique<cron_timer::TimerMgr>();
-	cron_timer_mgr->Start();
 
 	// 1秒钟执行一次的定时器
 	auto timer1 = cron_timer_mgr->AddTimer("* * * * * *", [](void) { printf("1 second timer hit\n"); });
@@ -66,6 +67,7 @@ int main() {
 
 	while (!_shutDown) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		cron_timer_mgr->Update();
 	}
 
 	timer1->Cancel();

@@ -3,37 +3,33 @@
 #include <list>
 #include <vector>
 #include <map>
-#include <thread>
-#include <mutex>
 #include <functional>
-#include <atomic>
+#include <assert.h>
+#include <time.h>
 
 /*
-	std::shared_ptr<cron_timer::TimerMgr> cron_timer_mgr = std::make_shared<cron_timer::TimerMgr>();
-	cron_timer_mgr->Start();
+	std::unique_ptr<cron_timer::TimerMgr> cron_timer_mgr = std::make_unique<cron_timer::TimerMgr>();
 
 	// 1秒钟执行一次的定时器
-	auto timer1 =
-		cron_timer_mgr->AddTimer("* * * * * *", [](void) { printf("1 second timer hit\n"); });
+	auto timer1 = cron_timer_mgr->AddTimer("* * * * * *", [](void) { printf("1 second timer hit\n"); });
 
 	//从0秒开始，每3秒钟执行一次的定时器
-	auto timer2 =
-		cron_timer_mgr->AddTimer("0/3 * * * * *", [](void) { printf("3 second timer hit\n"); });
+	auto timer2 = cron_timer_mgr->AddTimer("0/3 * * * * *", [](void) { printf("3 second timer hit\n"); });
 
 	// 1分钟执行一次（每次都在0秒的时候执行）的定时器
-	auto timer3 =
-		cron_timer_mgr->AddTimer("0 * * * * *", [](void) { printf("1 minute timer hit\n"); });
+	auto timer3 = cron_timer_mgr->AddTimer("0 * * * * *", [](void) { printf("1 minute timer hit\n"); });
 
 	//指定时间点执行的定时器
-	auto timer4 = cron_timer_mgr->AddTimer(
-		"15;30;50 * * * * *", [](void) { printf("timer hit at 15s or 30s or 50s\n"); });
+	auto timer4 =
+		cron_timer_mgr->AddTimer("15;30;50 * * * * *", [](void) { printf("timer hit at 15s or 30s or 50s\n"); });
 
 	//指定时间段执行的定时器
-	auto timer5 = cron_timer_mgr->AddTimer(
-		"30-34 * * * * *", [](void) { printf("timer hit at 30s, 31s, 32s, 33s, 34s\n"); });
+	auto timer5 =
+		cron_timer_mgr->AddTimer("30-34 * * * * *", [](void) { printf("timer hit at 30s, 31s, 32s, 33s, 34s\n"); });
 
 	while (!_shutDown) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		cron_timer_mgr->Update();
 	}
 
 	timer1->Cancel();
@@ -46,16 +42,6 @@
 */
 
 namespace cron_timer {
-class noncopyable {
-protected:
-	noncopyable() = default;
-	~noncopyable() = default;
-
-private:
-	noncopyable(const noncopyable&) = delete;
-	const noncopyable& operator=(const noncopyable&) = delete;
-};
-
 class Text {
 public:
 	static size_t SplitStr(std::vector<std::string>& os, const std::string& is, const char c) {
@@ -179,6 +165,7 @@ public:
 			values.push_back(value);
 		}
 
+		assert(values.size() > 0);
 		return values.size() > 0;
 	}
 
@@ -313,24 +300,12 @@ private:
 	std::list<std::shared_ptr<CronTimer>>::iterator it_;
 };
 
-class TimerMgr : public noncopyable {
+class TimerMgr {
 	friend class CronTimer;
+
 public:
-	~TimerMgr() { Stop(); };
-
-	void Start() {
-		last_proc_ = time(nullptr);
-		thread_stop_ = false;
-		thread_ = std::make_shared<std::thread>([this]() { this->ThreadProc(); });
-	}
-
+	~TimerMgr() { Stop(); }
 	void Stop() {
-		if (thread_ != nullptr) {
-			thread_stop_ = true;
-			thread_->join();
-			thread_ = nullptr;
-		}
-
 		cron_timers_.clear();
 	}
 
@@ -356,6 +331,25 @@ public:
 		return insert(p);
 	}
 
+	void Update() {
+		time_t time_now = time(nullptr);
+		while (!cron_timers_.empty()) {
+			auto& first = *cron_timers_.begin();
+			auto expire_time = first.first;
+			auto& timer_list = first.second;
+			if (expire_time > time_now) {
+				break;
+			}
+
+			while (!timer_list.empty()) {
+				auto p = *timer_list.begin();
+				p->DoFunc();
+			}
+
+			cron_timers_.erase(cron_timers_.begin());
+		}
+	}
+
 private:
 	std::shared_ptr<CronTimer> insert(std::shared_ptr<CronTimer> p) {
 		time_t t = p->GetCurTime();
@@ -375,6 +369,7 @@ private:
 		time_t t = p->GetCurTime();
 		auto it = cron_timers_.find(t);
 		if (it == cron_timers_.end()) {
+			assert(false);
 			return false;
 		}
 
@@ -385,40 +380,7 @@ private:
 	}
 
 private:
-	void ThreadProc() {
-		while (!thread_stop_) {
-			time_t time_now = time(nullptr);
-			if (time_now == last_proc_) {
-				std::this_thread::sleep_for(std::chrono::milliseconds(10));
-				continue;
-			}
-
-			last_proc_ = time_now;
-
-			while (!cron_timers_.empty()) {
-				auto& first = *cron_timers_.begin();
-				auto expire_time = first.first;
-				auto& timer_list = first.second;
-				if (expire_time > time_now) {
-					break;
-				}
-
-				while (!timer_list.empty()) {
-					auto p = *timer_list.begin();
-					p->DoFunc();
-				}
-
-				cron_timers_.erase(cron_timers_.begin());
-			}
-		}
-	}
-
-private:
 	std::map<time_t, std::list<std::shared_ptr<CronTimer>>> cron_timers_;
-
-	std::shared_ptr<std::thread> thread_;
-	std::atomic_bool thread_stop_;
-	time_t last_proc_ = 0;
 };
 
 void CronTimer::Cancel() {
