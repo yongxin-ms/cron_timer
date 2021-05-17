@@ -38,8 +38,6 @@
 	timer3->Cancel();
 	timer4->Cancel();
 	timer5->Cancel();
-
-	timer_mgr->Stop();
 */
 
 namespace cron_timer {
@@ -315,7 +313,6 @@ class TimerMgr {
 
 public:
 	~TimerMgr() { timers_.clear(); }
-	void Stop() { timers_.clear(); }
 
 	std::shared_ptr<Timer> AddTimer(const std::string& timer_string, const FUNC_CALLBACK& func) {
 		std::vector<std::string> v;
@@ -384,7 +381,6 @@ private:
 		time_t t = p->GetCurTime();
 		auto it = timers_.find(t);
 		if (it == timers_.end()) {
-			assert(false);
 			return false;
 		}
 

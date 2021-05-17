@@ -68,8 +68,6 @@ void TestCronTimer() {
 	timer3->Cancel();
 	timer4->Cancel();
 	timer5->Cancel();
-
-	timer_mgr->Stop();
 }
 
 void TestLaterTimer() {
@@ -78,6 +76,7 @@ void TestLaterTimer() {
 	// 3秒钟之后执行
 	auto timer1 = timer_mgr->AddTimer(3, [](void) { printf("3 second timer hit\n"); });
 
+	// 中途可以取消
 	timer1->Cancel();
 
 	// 10秒钟之后执行
@@ -87,8 +86,6 @@ void TestLaterTimer() {
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 		timer_mgr->Update();
 	}
-
-	timer_mgr->Stop();
 }
 
 int main() {

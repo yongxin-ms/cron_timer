@@ -54,8 +54,7 @@ class TimerMgr {
 	friend class Timer;
 
 public:
-	~TimerMgr() { Stop(); }
-	void Stop() { timers_.clear(); }
+	~TimerMgr() { timers_.clear(); }
 
 	std::shared_ptr<Timer> AddTimer(int seconds, const FUNC_CALLBACK& func) {
 		auto p = std::make_shared<Timer>(*this, seconds, func);
@@ -107,7 +106,6 @@ private:
 		time_t t = p->GetCurTime();
 		auto it = timers_.find(t);
 		if (it == timers_.end()) {
-			assert(false);
 			return false;
 		}
 
