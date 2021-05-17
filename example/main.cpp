@@ -11,6 +11,7 @@
 #endif
 
 #include "../include/cron_timer.h"
+#include "../include/call_later.h"
 
 std::atomic_bool _shutDown;
 
@@ -38,36 +39,28 @@ void signal_hander(int signo) //自定义一个函数处理信号
 }
 #endif
 
-int main() {
-#ifdef _WIN32
-	SetConsoleCtrlHandler(ConsoleHandler, TRUE);
-	EnableMenuItem(GetSystemMenu(GetConsoleWindow(), false), SC_CLOSE, MF_GRAYED | MF_BYCOMMAND);
-#else
-	signal(SIGINT, signal_hander);
-#endif
-
-	std::unique_ptr<cron_timer::TimerMgr> cron_timer_mgr = std::make_unique<cron_timer::TimerMgr>();
+void TestCronTimer() {
+	std::unique_ptr<cron_timer::TimerMgr> timer_mgr = std::make_unique<cron_timer::TimerMgr>();
 
 	// 1秒钟执行一次的定时器
-	auto timer1 = cron_timer_mgr->AddTimer("* * * * * *", [](void) { printf("1 second timer hit\n"); });
+	auto timer1 = timer_mgr->AddTimer("* * * * * *", [](void) { printf("1 second timer hit\n"); });
 
 	//从0秒开始，每3秒钟执行一次的定时器
-	auto timer2 = cron_timer_mgr->AddTimer("0/3 * * * * *", [](void) { printf("3 second timer hit\n"); });
+	auto timer2 = timer_mgr->AddTimer("0/3 * * * * *", [](void) { printf("3 second timer hit\n"); });
 
 	// 1分钟执行一次（每次都在0秒的时候执行）的定时器
-	auto timer3 = cron_timer_mgr->AddTimer("0 * * * * *", [](void) { printf("1 minute timer hit\n"); });
+	auto timer3 = timer_mgr->AddTimer("0 * * * * *", [](void) { printf("1 minute timer hit\n"); });
 
 	//指定时间点执行的定时器
-	auto timer4 =
-		cron_timer_mgr->AddTimer("15;30;50 * * * * *", [](void) { printf("timer hit at 15s or 30s or 50s\n"); });
+	auto timer4 = timer_mgr->AddTimer("15;30;50 * * * * *", [](void) { printf("timer hit at 15s or 30s or 50s\n"); });
 
 	//指定时间段执行的定时器
 	auto timer5 =
-		cron_timer_mgr->AddTimer("30-34 * * * * *", [](void) { printf("timer hit at 30s, 31s, 32s, 33s, 34s\n"); });
+		timer_mgr->AddTimer("30-34 * * * * *", [](void) { printf("timer hit at 30s, 31s, 32s, 33s, 34s\n"); });
 
 	while (!_shutDown) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
-		cron_timer_mgr->Update();
+		timer_mgr->Update();
 	}
 
 	timer1->Cancel();
@@ -76,6 +69,37 @@ int main() {
 	timer4->Cancel();
 	timer5->Cancel();
 
-	cron_timer_mgr->Stop();
+	timer_mgr->Stop();
+}
+
+void TestLaterTimer() {
+	std::unique_ptr<call_later::TimerMgr> timer_mgr = std::make_unique<call_later::TimerMgr>();
+
+	// 3秒钟之后执行
+	auto timer1 = timer_mgr->AddTimer(3, [](void) { printf("3 second timer hit\n"); });
+
+	timer1->Cancel();
+
+	// 10秒钟之后执行
+	auto timer2 = timer_mgr->AddTimer(10, [](void) { printf("10 second timer hit\n"); });
+
+	while (!_shutDown) {
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		timer_mgr->Update();
+	}
+
+	timer_mgr->Stop();
+}
+
+int main() {
+#ifdef _WIN32
+	SetConsoleCtrlHandler(ConsoleHandler, TRUE);
+	EnableMenuItem(GetSystemMenu(GetConsoleWindow(), false), SC_CLOSE, MF_GRAYED | MF_BYCOMMAND);
+#else
+	signal(SIGINT, signal_hander);
+#endif
+
+	TestCronTimer();
+	//TestLaterTimer();
 	return 0;
 }

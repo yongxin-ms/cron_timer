@@ -3,33 +3,33 @@
 #include <list>
 #include <vector>
 #include <map>
+#include <memory>
 #include <functional>
 #include <assert.h>
 #include <time.h>
 
 /*
-	std::unique_ptr<cron_timer::TimerMgr> cron_timer_mgr = std::make_unique<cron_timer::TimerMgr>();
+	std::unique_ptr<cron_timer::TimerMgr> timer_mgr = std::make_unique<cron_timer::TimerMgr>();
 
 	// 1秒钟执行一次的定时器
-	auto timer1 = cron_timer_mgr->AddTimer("* * * * * *", [](void) { printf("1 second timer hit\n"); });
+	auto timer1 = timer_mgr->AddTimer("* * * * * *", [](void) { printf("1 second timer hit\n"); });
 
 	//从0秒开始，每3秒钟执行一次的定时器
-	auto timer2 = cron_timer_mgr->AddTimer("0/3 * * * * *", [](void) { printf("3 second timer hit\n"); });
+	auto timer2 = timer_mgr->AddTimer("0/3 * * * * *", [](void) { printf("3 second timer hit\n"); });
 
 	// 1分钟执行一次（每次都在0秒的时候执行）的定时器
-	auto timer3 = cron_timer_mgr->AddTimer("0 * * * * *", [](void) { printf("1 minute timer hit\n"); });
+	auto timer3 = timer_mgr->AddTimer("0 * * * * *", [](void) { printf("1 minute timer hit\n"); });
 
 	//指定时间点执行的定时器
-	auto timer4 =
-		cron_timer_mgr->AddTimer("15;30;50 * * * * *", [](void) { printf("timer hit at 15s or 30s or 50s\n"); });
+	auto timer4 = timer_mgr->AddTimer("15;30;50 * * * * *", [](void) { printf("timer hit at 15s or 30s or 50s\n"); });
 
 	//指定时间段执行的定时器
 	auto timer5 =
-		cron_timer_mgr->AddTimer("30-34 * * * * *", [](void) { printf("timer hit at 30s, 31s, 32s, 33s, 34s\n"); });
+		timer_mgr->AddTimer("30-34 * * * * *", [](void) { printf("timer hit at 30s, 31s, 32s, 33s, 34s\n"); });
 
 	while (!_shutDown) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
-		cron_timer_mgr->Update();
+		timer_mgr->Update();
 	}
 
 	timer1->Cancel();
@@ -38,7 +38,7 @@
 	timer4->Cancel();
 	timer5->Cancel();
 
-	cron_timer_mgr->Stop();
+	timer_mgr->Stop();
 */
 
 namespace cron_timer {
@@ -224,13 +224,13 @@ struct Wheel {
 };
 
 class TimerMgr;
-using CRON_FUNC_CALLBACK = std::function<void()>;
+using FUNC_CALLBACK = std::function<void()>;
 
-class CronTimer : public std::enable_shared_from_this<CronTimer> {
+class Timer : public std::enable_shared_from_this<Timer> {
 	friend class TimerMgr;
 
 public:
-	CronTimer(TimerMgr& owner, const std::vector<Wheel>& wheels, const CRON_FUNC_CALLBACK& func)
+	Timer(TimerMgr& owner, const std::vector<Wheel>& wheels, const FUNC_CALLBACK& func)
 		: owner_(owner)
 		, wheels_(wheels)
 		, func_(func) {
@@ -257,8 +257,8 @@ public:
 	void Cancel();
 
 private:
-	void SetIt(const std::list<std::shared_ptr<CronTimer>>::iterator& it) { it_ = it; }
-	std::list<std::shared_ptr<CronTimer>>::iterator& GetIt() { return it_; }
+	void SetIt(const std::list<std::shared_ptr<Timer>>::iterator& it) { it_ = it; }
+	std::list<std::shared_ptr<Timer>>::iterator& GetIt() { return it_; }
 
 	void DoFunc();
 
@@ -296,20 +296,18 @@ private:
 private:
 	TimerMgr& owner_;
 	std::vector<Wheel> wheels_;
-	const CRON_FUNC_CALLBACK func_;
-	std::list<std::shared_ptr<CronTimer>>::iterator it_;
+	const FUNC_CALLBACK func_;
+	std::list<std::shared_ptr<Timer>>::iterator it_;
 };
 
 class TimerMgr {
-	friend class CronTimer;
+	friend class Timer;
 
 public:
-	~TimerMgr() { Stop(); }
-	void Stop() {
-		cron_timers_.clear();
-	}
+	~TimerMgr() { timers_.clear(); }
+	void Stop() { timers_.clear(); }
 
-	std::shared_ptr<CronTimer> AddTimer(const std::string& timer_string, const CRON_FUNC_CALLBACK& func) {
+	std::shared_ptr<Timer> AddTimer(const std::string& timer_string, const FUNC_CALLBACK& func) {
 		std::vector<std::string> v;
 		Text::SplitStr(v, timer_string, ' ');
 		if (v.size() != CronExpression::DT_MAX)
@@ -327,7 +325,7 @@ public:
 			wheels.emplace_back(wheel);
 		}
 
-		auto p = std::make_shared<CronTimer>(*this, wheels, func);
+		auto p = std::make_shared<Timer>(*this, wheels, func);
 		return insert(p);
 	}
 
@@ -338,8 +336,8 @@ public:
 			return 0;
 
 		last_proc_ = time_now;
-		while (!cron_timers_.empty()) {
-			auto& first = *cron_timers_.begin();
+		while (!timers_.empty()) {
+			auto& first = *timers_.begin();
 			auto expire_time = first.first;
 			auto& timer_list = first.second;
 			if (expire_time > time_now) {
@@ -352,19 +350,19 @@ public:
 				++count;
 			}
 
-			cron_timers_.erase(cron_timers_.begin());
+			timers_.erase(timers_.begin());
 		}
 		return count;
 	}
 
 private:
-	std::shared_ptr<CronTimer> insert(std::shared_ptr<CronTimer> p) {
+	std::shared_ptr<Timer> insert(std::shared_ptr<Timer> p) {
 		time_t t = p->GetCurTime();
-		auto it = cron_timers_.find(t);
-		if (it == cron_timers_.end()) {
-			std::list<std::shared_ptr<CronTimer>> l;
-			cron_timers_.insert(std::make_pair(t, l));
-			it = cron_timers_.find(t);
+		auto it = timers_.find(t);
+		if (it == timers_.end()) {
+			std::list<std::shared_ptr<Timer>> l;
+			timers_.insert(std::make_pair(t, l));
+			it = timers_.find(t);
 		}
 
 		auto& l = it->second;
@@ -372,10 +370,10 @@ private:
 		return p;
 	}
 
-	bool remove(std::shared_ptr<CronTimer> p) {
+	bool remove(std::shared_ptr<Timer> p) {
 		time_t t = p->GetCurTime();
-		auto it = cron_timers_.find(t);
-		if (it == cron_timers_.end()) {
+		auto it = timers_.find(t);
+		if (it == timers_.end()) {
 			assert(false);
 			return false;
 		}
@@ -387,16 +385,16 @@ private:
 	}
 
 private:
-	std::map<time_t, std::list<std::shared_ptr<CronTimer>>> cron_timers_;
+	std::map<time_t, std::list<std::shared_ptr<Timer>>> timers_;
 	time_t last_proc_ = 0;
 };
 
-void CronTimer::Cancel() {
+void Timer::Cancel() {
 	auto self = shared_from_this();
 	owner_.remove(self);
 }
 
-void CronTimer::DoFunc() {
+void Timer::DoFunc() {
 	func_();
 	auto self = shared_from_this();
 	owner_.remove(self);
