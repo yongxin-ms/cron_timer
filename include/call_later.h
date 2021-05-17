@@ -16,10 +16,11 @@ using FUNC_CALLBACK = std::function<void()>;
 class Timer : public std::enable_shared_from_this<Timer> {
 	friend class TimerMgr;
 public:
-	Timer(TimerMgr& owner, uint32_t seconds, const FUNC_CALLBACK& func)
+	Timer(TimerMgr& owner, uint32_t seconds, const FUNC_CALLBACK& func, int count)
 		: owner_(owner)
 		, seconds_(seconds)
-		, func_(func) {
+		, func_(func)
+		, count_left_(count) {
 		cur_time_ = time(nullptr);
 		Next();
 	}
@@ -36,7 +37,7 @@ private:
 		time_t time_now = time(nullptr);
 		while (true) {
 			cur_time_ += seconds_;
-			if (cur_time_ >= time_now) {
+			if (cur_time_ > time_now) {
 				break;
 			}
 		}
@@ -48,6 +49,7 @@ private:
 	const FUNC_CALLBACK func_;
 	std::list<std::shared_ptr<Timer>>::iterator it_;
 	time_t cur_time_;
+	int count_left_;
 };
 
 class TimerMgr {
@@ -56,8 +58,8 @@ class TimerMgr {
 public:
 	~TimerMgr() { timers_.clear(); }
 
-	std::shared_ptr<Timer> AddTimer(int seconds, const FUNC_CALLBACK& func) {
-		auto p = std::make_shared<Timer>(*this, seconds, func);
+	std::shared_ptr<Timer> AddTimer(int seconds, const FUNC_CALLBACK& func, int count = 1) {
+		auto p = std::make_shared<Timer>(*this, seconds, func, count);
 		return insert(p);
 	}
 
@@ -129,6 +131,11 @@ void Timer::DoFunc() {
 	func_();
 	auto self = shared_from_this();
 	owner_.remove(self);
+
+	if (--count_left_ > 0) {
+		Next();
+		owner_.insert(self);
+	}
 }
 
 } // namespace cron_timer

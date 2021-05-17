@@ -80,7 +80,7 @@ void TestLaterTimer() {
 	timer1->Cancel();
 
 	// 10秒钟之后执行
-	auto timer2 = timer_mgr->AddTimer(10, [](void) { printf("10 second timer hit\n"); });
+	auto timer2 = timer_mgr->AddTimer(10, [](void) { printf("10 second timer hit\n"); }, 3);
 
 	while (!_shutDown) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -96,7 +96,7 @@ int main() {
 	signal(SIGINT, signal_hander);
 #endif
 
-	TestCronTimer();
-	//TestLaterTimer();
+	// TestCronTimer();
+	TestLaterTimer();
 	return 0;
 }
