@@ -7,6 +7,7 @@
 #include <functional>
 #include <assert.h>
 #include <time.h>
+#include <cstring>
 
 /*
 	std::unique_ptr<cron_timer::TimerMgr> timer_mgr = std::make_unique<cron_timer::TimerMgr>();
@@ -272,6 +273,7 @@ private:
 
 	time_t GetCurTime() const {
 		tm next_tm;
+		memset(&next_tm, 0, sizeof(next_tm));
 		next_tm.tm_sec = GetCurValue(CronExpression::DT_SECOND);
 		next_tm.tm_min = GetCurValue(CronExpression::DT_MINUTE);
 		next_tm.tm_hour = GetCurValue(CronExpression::DT_HOUR);
