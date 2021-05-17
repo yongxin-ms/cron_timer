@@ -196,6 +196,9 @@ private:
 			from = 1970;
 			to = 2099;
 			break;
+		case CronExpression::DT_MAX:
+			assert(false);
+			break;
 		}
 
 		return std::make_pair(from, to);
@@ -236,7 +239,12 @@ public:
 		, func_(func) {
 		tm local_tm;
 		time_t time_now = time(nullptr);
+
+#ifdef _WIN32
 		localtime_s(&local_tm, &time_now);
+#else
+		localtime_r(&time_now, &local_tm);
+#endif // _WIN32
 
 		std::vector<int> init_values;
 		init_values.push_back(local_tm.tm_sec);
