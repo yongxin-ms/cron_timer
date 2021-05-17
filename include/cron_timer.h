@@ -204,8 +204,8 @@ private:
 	}
 };
 
-struct Wheel {
-	Wheel()
+struct CronWheel {
+	CronWheel()
 		: cur_index(0) {}
 
 	//返回值：是否有进位
@@ -228,14 +228,30 @@ struct Wheel {
 class TimerMgr;
 using FUNC_CALLBACK = std::function<void()>;
 
-class Timer : public std::enable_shared_from_this<Timer> {
-	friend class TimerMgr;
-
+class BaseTimer : public std::enable_shared_from_this<BaseTimer> {
 public:
-	Timer(TimerMgr& owner, const std::vector<Wheel>& wheels, const FUNC_CALLBACK& func)
+	BaseTimer(TimerMgr& owner, const FUNC_CALLBACK& func)
 		: owner_(owner)
-		, wheels_(wheels)
-		, func_(func) {
+		, func_(func) {}
+
+	void Cancel();
+	void SetIt(const std::list<std::shared_ptr<BaseTimer>>::iterator& it) { it_ = it; }
+	std::list<std::shared_ptr<BaseTimer>>::iterator& GetIt() { return it_; }
+
+	virtual void DoFunc() = 0;
+	virtual time_t GetCurTime() const = 0;
+
+protected:
+	TimerMgr& owner_;
+	const FUNC_CALLBACK func_;
+	std::list<std::shared_ptr<BaseTimer>>::iterator it_;
+};
+
+class CronTimer : public BaseTimer {
+public:
+	CronTimer(TimerMgr& owner, const std::vector<CronWheel>& wheels, const FUNC_CALLBACK& func)
+		: BaseTimer(owner, func)
+		, wheels_(wheels) {
 		tm local_tm;
 		time_t time_now = time(nullptr);
 
@@ -261,15 +277,8 @@ public:
 		}
 	}
 
-	void Cancel();
-
-private:
-	void SetIt(const std::list<std::shared_ptr<Timer>>::iterator& it) { it_ = it; }
-	std::list<std::shared_ptr<Timer>>::iterator& GetIt() { return it_; }
-
-	void DoFunc();
-
-	time_t GetCurTime() const {
+	virtual void DoFunc() override;
+	virtual time_t GetCurTime() const override {
 		tm next_tm;
 		memset(&next_tm, 0, sizeof(next_tm));
 		next_tm.tm_sec = GetCurValue(CronExpression::DT_SECOND);
@@ -302,29 +311,54 @@ private:
 	}
 
 private:
-	TimerMgr& owner_;
-	std::vector<Wheel> wheels_;
-	const FUNC_CALLBACK func_;
-	std::list<std::shared_ptr<Timer>>::iterator it_;
+	std::vector<CronWheel> wheels_;
+};
+
+class LaterTimer : public BaseTimer {
+public:
+	LaterTimer(TimerMgr& owner, uint32_t seconds, const FUNC_CALLBACK& func, int count)
+		: BaseTimer(owner, func)
+		, seconds_(seconds)
+		, count_left_(count) {
+		cur_time_ = time(nullptr);
+		Next();
+	}
+
+	virtual void DoFunc() override;
+	virtual time_t GetCurTime() const override { return cur_time_; }
+
+private:
+	void Next() {
+		time_t time_now = time(nullptr);
+		while (true) {
+			cur_time_ += seconds_;
+			if (cur_time_ > time_now) {
+				break;
+			}
+		}
+	}
+
+private:
+	const uint32_t seconds_;
+	time_t cur_time_;
+	int count_left_;
 };
 
 class TimerMgr {
-	friend class Timer;
-
 public:
 	~TimerMgr() { timers_.clear(); }
 
-	std::shared_ptr<Timer> AddTimer(const std::string& timer_string, const FUNC_CALLBACK& func) {
+	std::shared_ptr<BaseTimer> AddTimer(const std::string& timer_string, const FUNC_CALLBACK& func) {
 		std::vector<std::string> v;
 		Text::SplitStr(v, timer_string, ' ');
 		if (v.size() != CronExpression::DT_MAX)
 			return nullptr;
 
-		std::vector<Wheel> wheels;
+		std::vector<CronWheel> wheels;
 		for (int i = 0; i < CronExpression::DT_MAX; i++) {
 			const auto& expression = v[i];
 			CronExpression::DATA_TYPE data_type = CronExpression::DATA_TYPE(i);
-			Wheel wheel;
+			CronWheel wheel;
 			if (!CronExpression::GetValues(expression, data_type, wheel.values)) {
 				return nullptr;
 			}
@@ -332,8 +366,15 @@ public:
 			wheels.emplace_back(wheel);
 		}
 
-		auto p = std::make_shared<Timer>(*this, wheels, func);
-		return insert(p);
+		auto p = std::make_shared<CronTimer>(*this, wheels, func);
+		insert(p);
+		return p;
+	}
+
+	std::shared_ptr<BaseTimer> AddTimer(int seconds, const FUNC_CALLBACK& func, int count = 1) {
+		auto p = std::make_shared<LaterTimer>(*this, seconds, func, count);
+		insert(p);
+		return p;
 	}
 
 	size_t Update() {
@@ -359,25 +400,24 @@ public:
 
 			timers_.erase(timers_.begin());
 		}
+
 		return count;
 	}
 
-private:
-	std::shared_ptr<Timer> insert(std::shared_ptr<Timer> p) {
+	void insert(std::shared_ptr<BaseTimer> p) {
 		time_t t = p->GetCurTime();
 		auto it = timers_.find(t);
 		if (it == timers_.end()) {
-			std::list<std::shared_ptr<Timer>> l;
+			std::list<std::shared_ptr<BaseTimer>> l;
 			timers_.insert(std::make_pair(t, l));
 			it = timers_.find(t);
 		}
 
 		auto& l = it->second;
 		p->SetIt(l.insert(l.end(), p));
-		return p;
 	}
 
-	bool remove(std::shared_ptr<Timer> p) {
+	bool remove(std::shared_ptr<BaseTimer> p) {
 		time_t t = p->GetCurTime();
 		auto it = timers_.find(t);
 		if (it == timers_.end()) {
@@ -391,21 +431,32 @@ private:
 	}
 
 private:
-	std::map<time_t, std::list<std::shared_ptr<Timer>>> timers_;
+	std::map<time_t, std::list<std::shared_ptr<BaseTimer>>> timers_;
 	time_t last_proc_ = 0;
 };
 
-void Timer::Cancel() {
+void BaseTimer::Cancel() {
 	auto self = shared_from_this();
 	owner_.remove(self);
 }
 
-void Timer::DoFunc() {
+void CronTimer::DoFunc() {
 	func_();
 	auto self = shared_from_this();
 	owner_.remove(self);
 	Next(CronExpression::DT_SECOND);
 	owner_.insert(self);
+}
+
+void LaterTimer::DoFunc() {
+	func_();
+	auto self = shared_from_this();
+	owner_.remove(self);
+
+	if (--count_left_ > 0) {
+		Next();
+		owner_.insert(self);
+	}
 }
 
 } // namespace cron_timer

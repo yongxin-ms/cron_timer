@@ -23,7 +23,6 @@ set(SOURCE_FILES
 
 set(CRON_TIMER_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/../include/cron_timer.h
-	${CMAKE_CURRENT_SOURCE_DIR}/../include/call_later.h
 	)
 
 source_group(source FILES ${SOURCE_FILES})
