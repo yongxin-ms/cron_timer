@@ -350,6 +350,14 @@ private:
 
 class TimerMgr {
 public:
+	TimerMgr() { last_proc_ = time(nullptr); }
+	TimerMgr(const FUNC_CALLBACK& func) {
+		update_func_ = func;
+		last_proc_ = time(nullptr);
+		thread_stop_ = false;
+		thread_ = std::make_shared<std::thread>([this]() { this->ThreadProc(); });
+	}
+
 	~TimerMgr() {
 		timers_.clear();
 		if (thread_ != nullptr) {
@@ -357,13 +365,6 @@ public:
 			thread_->join();
 			thread_ = nullptr;
 		}
-	}
-
-	void StartThread(const FUNC_CALLBACK& func) {
-		update_func_ = func;
-		last_proc_ = time(nullptr);
-		thread_stop_ = false;
-		thread_ = std::make_shared<std::thread>([this]() { this->ThreadProc(); });
 	}
 
 	std::shared_ptr<BaseTimer> AddTimer(const std::string& timer_string, const FUNC_CALLBACK& func) {
