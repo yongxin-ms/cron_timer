@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <time.h>
 #include <cstring>
+#include <atomic>
 
 /*
 	std::unique_ptr<cron_timer::TimerMgr> timer_mgr = std::make_unique<cron_timer::TimerMgr>();
@@ -349,13 +350,29 @@ private:
 
 class TimerMgr {
 public:
-	~TimerMgr() { timers_.clear(); }
+	~TimerMgr() {
+		timers_.clear();
+		if (thread_ != nullptr) {
+			thread_stop_ = true;
+			thread_->join();
+			thread_ = nullptr;
+		}
+	}
+
+	void StartThread(const FUNC_CALLBACK& func) {
+		update_func_ = func;
+		last_proc_ = time(nullptr);
+		thread_stop_ = false;
+		thread_ = std::make_shared<std::thread>([this]() { this->ThreadProc(); });
+	}
 
 	std::shared_ptr<BaseTimer> AddTimer(const std::string& timer_string, const FUNC_CALLBACK& func) {
 		std::vector<std::string> v;
 		Text::SplitStr(v, timer_string, ' ');
-		if (v.size() != CronExpression::DT_MAX)
+		if (v.size() != CronExpression::DT_MAX) {
+			assert(false);
 			return nullptr;
+		}
 
 		std::vector<CronWheel> wheels;
 		for (int i = 0; i < CronExpression::DT_MAX; i++) {
@@ -374,7 +391,8 @@ public:
 		return p;
 	}
 
-	std::shared_ptr<BaseTimer> AddTimer(int seconds, const FUNC_CALLBACK& func, int count = 1) {
+	std::shared_ptr<BaseTimer> AddTimer(uint32_t seconds, const FUNC_CALLBACK& func, int count = 1) {
+		assert(seconds > 0);
 		auto p = std::make_shared<LaterTimer>(*this, seconds, func, count);
 		insert(p);
 		return p;
@@ -434,8 +452,20 @@ public:
 	}
 
 private:
+	void ThreadProc() {
+		while (!thread_stop_) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			update_func_();
+		}
+	}
+
+private:
 	std::map<time_t, std::list<std::shared_ptr<BaseTimer>>> timers_;
 	time_t last_proc_ = 0;
+
+	FUNC_CALLBACK update_func_;
+	std::shared_ptr<std::thread> thread_;
+	std::atomic_bool thread_stop_;
 };
 
 void BaseTimer::Cancel() {
