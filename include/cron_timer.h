@@ -9,6 +9,7 @@
 #include <time.h>
 #include <cstring>
 #include <atomic>
+#include <thread>
 
 /*
 	std::unique_ptr<cron_timer::TimerMgr> timer_mgr = std::make_unique<cron_timer::TimerMgr>();
@@ -94,6 +95,7 @@ public:
 		DT_MAX,
 	};
 
+	// 获得数值枚举
 	static bool GetValues(const std::string& input, DATA_TYPE data_type, std::vector<int>& values) {
 
 		//
@@ -173,6 +175,8 @@ public:
 	}
 
 private:
+
+	// 获得范围
 	static std::pair<int, int> GetRangeFromType(DATA_TYPE data_type) {
 		int from = 0;
 		int to = 0;
@@ -238,7 +242,7 @@ public:
 		: owner_(owner)
 		, func_(func) {}
 
-	void Cancel();
+	inline void Cancel();
 	void SetIt(const std::list<std::shared_ptr<BaseTimer>>::iterator& it) { it_ = it; }
 	std::list<std::shared_ptr<BaseTimer>>::iterator& GetIt() { return it_; }
 
@@ -255,7 +259,8 @@ class CronTimer : public BaseTimer {
 public:
 	CronTimer(TimerMgr& owner, const std::vector<CronWheel>& wheels, const FUNC_CALLBACK& func)
 		: BaseTimer(owner, func)
-		, wheels_(wheels) {
+		, wheels_(wheels)
+		, over_flowed_(false) {
 		tm local_tm;
 		time_t time_now = time(nullptr);
 
@@ -281,8 +286,8 @@ public:
 		}
 	}
 
-	virtual void DoFunc() override;
-	virtual time_t GetCurTime() const override {
+	inline void DoFunc() override;
+	time_t GetCurTime() const override {
 		tm next_tm;
 		memset(&next_tm, 0, sizeof(next_tm));
 		next_tm.tm_sec = GetCurValue(CronExpression::DT_SECOND);
@@ -296,9 +301,14 @@ public:
 	}
 
 private:
+
+	// 前进到下一格
 	void Next(int data_type) {
-		if (data_type >= CronExpression::DT_MAX)
+		if (data_type >= CronExpression::DT_MAX) {
+			// 溢出了表明此定时器已经失效，不应该再被执行
+			over_flowed_ = true;
 			return;
+		}
 
 		auto& wheel = wheels_[data_type];
 		if (wheel.cur_index == wheel.values.size() - 1) {
@@ -316,11 +326,12 @@ private:
 
 private:
 	std::vector<CronWheel> wheels_;
+	bool over_flowed_;
 };
 
 class LaterTimer : public BaseTimer {
 public:
-	LaterTimer(TimerMgr& owner, uint32_t seconds, const FUNC_CALLBACK& func, int count)
+	LaterTimer(TimerMgr& owner, int seconds, const FUNC_CALLBACK& func, int count)
 		: BaseTimer(owner, func)
 		, seconds_(seconds)
 		, count_left_(count) {
@@ -328,10 +339,12 @@ public:
 		Next();
 	}
 
-	virtual void DoFunc() override;
-	virtual time_t GetCurTime() const override { return cur_time_; }
+	inline void DoFunc() override;
+	time_t GetCurTime() const override { return cur_time_; }
 
 private:
+
+	//前进到下一格
 	void Next() {
 		time_t time_now = time(nullptr);
 		while (true) {
@@ -343,13 +356,17 @@ private:
 	}
 
 private:
-	const uint32_t seconds_;
+	const int seconds_;
 	time_t cur_time_;
 	int count_left_;
 };
 
 class TimerMgr {
 public:
+	enum {
+		RUN_FOREVER = 0,
+	};
+
 	TimerMgr() { last_proc_ = time(nullptr); }
 	TimerMgr(const FUNC_CALLBACK& func) {
 		update_func_ = func;
@@ -367,6 +384,7 @@ public:
 		}
 	}
 
+	// 新增一个Cron表达式的定时器
 	std::shared_ptr<BaseTimer> AddTimer(const std::string& timer_string, const FUNC_CALLBACK& func) {
 		std::vector<std::string> v;
 		Text::SplitStr(v, timer_string, ' ');
@@ -381,6 +399,7 @@ public:
 			CronExpression::DATA_TYPE data_type = CronExpression::DATA_TYPE(i);
 			CronWheel wheel;
 			if (!CronExpression::GetValues(expression, data_type, wheel.values)) {
+				assert(false);
 				return nullptr;
 			}
 
@@ -392,8 +411,10 @@ public:
 		return p;
 	}
 
-	std::shared_ptr<BaseTimer> AddTimer(uint32_t seconds, const FUNC_CALLBACK& func, int count = 1) {
+	// 新增一个延时执行的定时器
+	std::shared_ptr<BaseTimer> AddTimer(int seconds, const FUNC_CALLBACK& func, int count = 1) {
 		assert(seconds > 0);
+		seconds = std::max(seconds, 1);
 		auto p = std::make_shared<LaterTimer>(*this, seconds, func, count);
 		insert(p);
 		return p;
@@ -426,7 +447,7 @@ public:
 		return count;
 	}
 
-	void insert(std::shared_ptr<BaseTimer> p) {
+	void insert(const std::shared_ptr<BaseTimer>& p) {
 		time_t t = p->GetCurTime();
 		auto it = timers_.find(t);
 		if (it == timers_.end()) {
@@ -439,7 +460,7 @@ public:
 		p->SetIt(l.insert(l.end(), p));
 	}
 
-	bool remove(std::shared_ptr<BaseTimer> p) {
+	bool remove(const std::shared_ptr<BaseTimer>& p) {
 		time_t t = p->GetCurTime();
 		auto it = timers_.find(t);
 		if (it == timers_.end()) {
@@ -447,6 +468,12 @@ public:
 		}
 
 		auto& l = it->second;
+		if (p->GetIt() == l.end()) {
+			// 删除了多次？
+			assert(false);
+			return false;
+		}
+
 		l.erase(p->GetIt());
 		p->SetIt(l.end());
 		return true;
@@ -455,7 +482,7 @@ public:
 private:
 	void ThreadProc() {
 		while (!thread_stop_) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			std::this_thread::sleep_for(std::chrono::milliseconds(50));
 			update_func_();
 		}
 	}
@@ -478,8 +505,11 @@ void CronTimer::DoFunc() {
 	func_();
 	auto self = shared_from_this();
 	owner_.remove(self);
+
 	Next(CronExpression::DT_SECOND);
-	owner_.insert(self);
+	if (!over_flowed_) {
+		owner_.insert(self);
+	}
 }
 
 void LaterTimer::DoFunc() {
@@ -487,7 +517,7 @@ void LaterTimer::DoFunc() {
 	auto self = shared_from_this();
 	owner_.remove(self);
 
-	if (--count_left_ > 0) {
+	if (count_left_ <= TimerMgr::RUN_FOREVER || --count_left_ > 0) {
 		Next();
 		owner_.insert(self);
 	}
