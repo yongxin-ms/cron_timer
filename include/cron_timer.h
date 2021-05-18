@@ -12,36 +12,52 @@
 #include <thread>
 
 /*
-	std::unique_ptr<cron_timer::TimerMgr> timer_mgr = std::make_unique<cron_timer::TimerMgr>();
+	cron_timer::TimerMgr mgr;
 
-	// 1秒钟执行一次的定时器
-	timer_mgr->AddTimer("* * * * * *", [](void) { printf("1 second cron timer hit\n"); });
+	mgr.AddTimer("* * * * * *", [](void) {
+		// 每秒钟都会执行
+		Log("1 second cron timer hit");
+	});
 
-	//从0秒开始，每3秒钟执行一次的定时器
-	timer_mgr->AddTimer("0/3 * * * * *", [](void) { printf("3 second cron timer hit\n"); });
+	mgr.AddTimer("0/3 * * * * *", [](void) {
+		// 从0秒开始，每3秒钟执行一次
+		Log("3 second cron timer hit");
+	});
 
-	// 1分钟执行一次（每次都在0秒的时候执行）的定时器
-	timer_mgr->AddTimer("0 * * * * *", [](void) { printf("1 minute cron timer hit\n"); });
+	mgr.AddTimer("0 * * * * *", [](void) {
+		// 1分钟执行一次（每次都在0秒的时候执行）的定时器
+		Log("1 minute cron timer hit");
+	});
 
-	//指定时间点执行的定时器
-	timer_mgr->AddTimer("15;30;50 * * * * *", [](void) { printf("cron timer hit at 15s or 30s or 50s\n"); });
+	mgr.AddTimer("15;30;33 * * * * *", [](void) {
+		// 指定时间点执行的定时器
+		Log("cron timer hit at 15s or 30s or 33s");
+	});
 
-	//指定时间段执行的定时器
-	timer_mgr->AddTimer("30-34 * * * * *", [](void) { printf("cron timer hit at 30s, 31s, 32s, 33s, 34s\n"); });
+	mgr.AddTimer("40-50 * * * * *", [](void) {
+		// 指定时间段执行的定时器
+		Log("cron timer hit between 40s to 50s");
+	});
 
-	// 3秒钟之后执行
-	auto timer = timer_mgr->AddTimer(3, [](void) { printf("3 second delay timer hit\n"); });
+	auto timer = mgr.AddTimer(3, [](void) {
+		// 3秒钟之后执行
+		Log("3 second delay timer hit");
+	});
 
 	// 中途可以取消
 	timer->Cancel();
 
-	// 10秒钟之后执行
-	timer_mgr->AddTimer(
-		10, [](void) { printf("10 second delay timer hit\n"); }, 3);
+	mgr.AddTimer(
+		10,
+		[](void) {
+			// 10秒钟之后执行
+			Log("10 second delay timer hit");
+		},
+		3);
 
 	while (!_shutDown) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
-		timer_mgr->Update();
+		mgr.Update();
 	}
 */
 
@@ -414,7 +430,7 @@ public:
 	// 新增一个延时执行的定时器
 	std::shared_ptr<BaseTimer> AddTimer(int seconds, const FUNC_CALLBACK& func, int count = 1) {
 		assert(seconds > 0);
-		seconds = std::max(seconds, 1);
+		seconds = (std::max)(seconds, 1);
 		auto p = std::make_shared<LaterTimer>(*this, seconds, func, count);
 		insert(p);
 		return p;
