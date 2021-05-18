@@ -59,7 +59,7 @@ void Log(const char* fmt, ...) {
 	va_end(args);
 
 	std::string time_now = FormatDateTime(time(nullptr));
-	printf("%s Error: %s\n", time_now.c_str(), buf);
+	printf("%s %s\n", time_now.c_str(), buf);
 }
 
 void TestCronTimer() {
