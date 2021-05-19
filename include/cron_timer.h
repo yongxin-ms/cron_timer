@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <string>
 #include <list>
 #include <vector>
@@ -191,7 +191,6 @@ public:
 	}
 
 private:
-
 	// 获得范围
 	static std::pair<int, int> GetRangeFromType(DATA_TYPE data_type) {
 		int from = 0;
@@ -319,7 +318,6 @@ public:
 	}
 
 private:
-
 	// 前进到下一格
 	void Next(int data_type) {
 		if (data_type >= CronExpression::DT_MAX) {
@@ -357,13 +355,12 @@ public:
 		cur_time_ = time(nullptr);
 		Next();
 	}
-	
+
 	virtual ~LaterTimer() {}
 	inline void DoFunc() override;
 	time_t GetCurTime() const override { return cur_time_; }
 
 private:
-
 	//前进到下一格
 	void Next() {
 		time_t time_now = time(nullptr);
