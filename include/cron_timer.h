@@ -303,6 +303,7 @@ public:
 		}
 	}
 
+	virtual ~CronTimer() {}
 	inline void DoFunc() override;
 	time_t GetCurTime() const override {
 		tm next_tm;
@@ -356,7 +357,8 @@ public:
 		cur_time_ = time(nullptr);
 		Next();
 	}
-
+	
+	virtual ~LaterTimer() {}
 	inline void DoFunc() override;
 	time_t GetCurTime() const override { return cur_time_; }
 
