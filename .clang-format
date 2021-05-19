@@ -1,3 +1,5 @@
+# 语言: None Cpp Java Objc Protp
+Language: Cpp
 # 基于那个配置文件
 BasedOnStyle: LLVM
 # 访问说明符的偏移(public private)
@@ -32,8 +34,6 @@ AlwaysBreakAfterDefinitionReturnType: None
 ColumnLimit: 120
 # 描述具有特殊意义的注释的正则表达式，它不应该被分割为多行或以其它方式改变
 CommentPragmas: '^ IWYU pragma:'
-# 语言: None Cpp Java Objc Protp
-Language: Cpp
 #指针的*的挨着哪边
 PointerAlignment: Left
 #缩进宽度
@@ -44,10 +44,6 @@ MaxEmptyLinesToKeep: 1
 ObjCSpaceAfterProperty: true
 # OC block后面的缩进
 ObjCBlockIndentWidth: 4
-# 是否允许短方法单行
-AllowShortFunctionsOnASingleLine: true
-# 换行的时候对齐操作符
-#AlignOperands: true
 # 中括号两边空格 []
 SpacesInSquareBrackets: false
 # 小括号两边添加空格
