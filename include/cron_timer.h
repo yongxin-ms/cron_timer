@@ -273,10 +273,11 @@ protected:
 
 class CronTimer : public BaseTimer {
 public:
-	CronTimer(TimerMgr& owner, const std::vector<CronWheel>& wheels, const FUNC_CALLBACK& func)
+	CronTimer(TimerMgr& owner, const std::vector<CronWheel>& wheels, const FUNC_CALLBACK& func, int count)
 		: BaseTimer(owner, func)
 		, wheels_(wheels)
-		, over_flowed_(false) {
+		, over_flowed_(false)
+		, count_left_(count) {
 		tm local_tm;
 		time_t time_now = time(nullptr);
 
@@ -343,6 +344,7 @@ private:
 private:
 	std::vector<CronWheel> wheels_;
 	bool over_flowed_;
+	int count_left_;
 };
 
 class LaterTimer : public BaseTimer {
@@ -401,7 +403,8 @@ public:
 	}
 
 	// 新增一个Cron表达式的定时器
-	std::shared_ptr<BaseTimer> AddTimer(const std::string& timer_string, const FUNC_CALLBACK& func) {
+	std::shared_ptr<BaseTimer> AddTimer(
+		const std::string& timer_string, const FUNC_CALLBACK& func, int count = RUN_FOREVER) {
 		std::vector<std::string> v;
 		Text::SplitStr(v, timer_string, ' ');
 		if (v.size() != CronExpression::DT_MAX) {
@@ -422,7 +425,7 @@ public:
 			wheels.emplace_back(wheel);
 		}
 
-		auto p = std::make_shared<CronTimer>(*this, wheels, func);
+		auto p = std::make_shared<CronTimer>(*this, wheels, func, count);
 		insert(p);
 		return p;
 	}
@@ -523,7 +526,7 @@ void CronTimer::DoFunc() {
 	owner_.remove(self);
 
 	Next(CronExpression::DT_SECOND);
-	if (!over_flowed_) {
+	if ((count_left_ <= TimerMgr::RUN_FOREVER || --count_left_ > 0) && !over_flowed_) {
 		owner_.insert(self);
 	}
 }
