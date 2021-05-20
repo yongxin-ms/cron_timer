@@ -2,6 +2,7 @@
 #include <memory>
 #include <atomic>
 #include <thread>
+#include <cstdarg>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
