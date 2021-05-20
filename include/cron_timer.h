@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 #include <list>
 #include <vector>
@@ -401,7 +401,7 @@ public:
 		}
 	}
 
-	// 新增一个Cron表达式的定时器
+	// 新增一个Cron表达式的定时器，缺省永远执行
 	std::shared_ptr<BaseTimer> AddTimer(
 		const std::string& timer_string, const FUNC_CALLBACK& func, int count = RUN_FOREVER) {
 		std::vector<std::string> v;
@@ -429,7 +429,7 @@ public:
 		return p;
 	}
 
-	// 新增一个延时执行的定时器
+	// 新增一个延时执行的定时器，缺省运行一次
 	std::shared_ptr<BaseTimer> AddTimer(int seconds, const FUNC_CALLBACK& func, int count = 1) {
 		assert(seconds > 0);
 		seconds = (std::max)(seconds, 1);
@@ -444,11 +444,12 @@ public:
 		if (time_now == last_proc_)
 			return 0;
 
+		// 每秒执行一次
 		last_proc_ = time_now;
 		while (!timers_.empty()) {
-			auto& first = *timers_.begin();
-			auto expire_time = first.first;
-			auto& timer_list = first.second;
+			auto it = timers_.begin();
+			auto expire_time = it->first;
+			auto& timer_list = it->second;
 			if (expire_time > time_now) {
 				break;
 			}
@@ -459,7 +460,7 @@ public:
 				++count;
 			}
 
-			timers_.erase(timers_.begin());
+			timers_.erase(it);
 		}
 
 		return count;
