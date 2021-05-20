@@ -446,8 +446,7 @@ public:
 
 		// 每秒执行一次
 		last_proc_ = time_now;
-		while (!timers_.empty()) {
-			auto it = timers_.begin();
+		for (auto it = timers_.begin(); it != timers_.end();) {
 			auto expire_time = it->first;
 			auto& timer_list = it->second;
 			if (expire_time > time_now) {
@@ -460,7 +459,7 @@ public:
 				++count;
 			}
 
-			timers_.erase(it);
+			it = timers_.erase(it);
 		}
 
 		return count;
