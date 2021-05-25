@@ -69,34 +69,34 @@ void Log(const char* fmt, ...) {
 }
 
 void TestCronTimerInMainThread() {
-	auto mgr = std::make_shared<cron_timer::TimerMgr>();
+	cron_timer::TimerMgr mgr;
 
-	mgr->AddTimer("* * * * * *", [](void) {
+	mgr.AddTimer("* * * * * *", [](void) {
 		// 每秒钟都会执行一次
 		Log("1 second cron timer hit");
 	});
 
-	mgr->AddTimer("0/3 * * * * *", [](void) {
+	mgr.AddTimer("0/3 * * * * *", [](void) {
 		// 从0秒开始，每3秒钟执行一次
 		Log("3 second cron timer hit");
 	});
 
-	mgr->AddTimer("0 * * * * *", [](void) {
+	mgr.AddTimer("0 * * * * *", [](void) {
 		// 1分钟执行一次（每次都在0秒的时候执行）的定时器
 		Log("1 minute cron timer hit");
 	});
 
-	mgr->AddTimer("15;30;33 * * * * *", [](void) {
+	mgr.AddTimer("15;30;33 * * * * *", [](void) {
 		// 指定时间（15秒、30秒和33秒）点都会执行一次
 		Log("cron timer hit at 15s or 30s or 33s");
 	});
 
-	mgr->AddTimer("40-50 * * * * *", [](void) {
+	mgr.AddTimer("40-50 * * * * *", [](void) {
 		// 指定时间段（40到50内的每一秒）执行的定时器
 		Log("cron timer hit between 40s to 50s");
 	});
 
-	auto timer = mgr->AddDelayTimer(3000, [](void) {
+	auto timer = mgr.AddDelayTimer(3000, [](void) {
 		// 3秒钟之后执行
 		Log("3 second delay timer hit");
 	});
@@ -104,20 +104,20 @@ void TestCronTimerInMainThread() {
 	// 可以在执行之前取消
 	timer->Cancel();
 
-	mgr->AddDelayTimer(
+	mgr.AddDelayTimer(
 		10000,
 		[](void) {
 			// 每10秒钟执行一次，总共执行3次
 			Log("10 second delay timer hit");
 		},
 		3);
+	Log("10 second delay timer added");
 
 	while (!_shutDown) {
 		auto nearest_timer =
-			(std::min)(std::chrono::system_clock::now() + std::chrono::milliseconds(500), mgr->GetNearestTime());
-
+			(std::min)(std::chrono::system_clock::now() + std::chrono::milliseconds(500), mgr.GetNearestTime());
 		std::this_thread::sleep_until(nearest_timer);
-		mgr->Update();
+		mgr.Update();
 	}
 }
 
