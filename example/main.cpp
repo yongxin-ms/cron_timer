@@ -64,7 +64,6 @@ void Log(const char* fmt, ...) {
 }
 
 void TestCronTimerInMainThread() {
-	// 如果你想在主线程中触发定时器事件
 	auto mgr = std::make_shared<cron_timer::TimerMgr>();
 
 	mgr->AddTimer("* * * * * *", [](void) {
@@ -92,7 +91,7 @@ void TestCronTimerInMainThread() {
 		Log("cron timer hit between 40s to 50s");
 	});
 
-	auto timer = mgr->AddTimer(3, [](void) {
+	auto timer = mgr->AddDelayTimer(3000, [](void) {
 		// 3秒钟之后执行
 		Log("3 second delay timer hit");
 	});
@@ -100,8 +99,8 @@ void TestCronTimerInMainThread() {
 	// 可以在执行之前取消
 	timer->Cancel();
 
-	mgr->AddTimer(
-		10,
+	mgr->AddDelayTimer(
+		10000,
 		[](void) {
 			// 每10秒钟执行一次，总共执行3次
 			Log("10 second delay timer hit");
@@ -109,63 +108,11 @@ void TestCronTimerInMainThread() {
 		3);
 
 	while (!_shutDown) {
-		std::this_thread::sleep_for(std::chrono::milliseconds(100));
-		mgr->Update(); // 在主线程中触发定时器事件
-	}
-}
+		auto nearest_timer =
+			(std::min)(std::chrono::system_clock::now() + std::chrono::milliseconds(500), mgr->GetNearestTime());
 
-void TestCronTimerInSubThread() {
-	// 如果你想在子线程中触发定时器事件
-	std::shared_ptr<cron_timer::TimerMgr> mgr = std::make_shared<cron_timer::TimerMgr>([&mgr]() {
-		if (mgr != nullptr) {
-			// 在子线程中触发定时器事件
-			mgr->Update();
-		}
-	});
-
-	mgr->AddTimer("* * * * * *", [](void) {
-		// 每秒钟都会执行一次
-		Log("1 second cron timer hit");
-	});
-
-	mgr->AddTimer("0/3 * * * * *", [](void) {
-		// 从0秒开始，每3秒钟执行一次
-		Log("3 second cron timer hit");
-	});
-
-	mgr->AddTimer("0 * * * * *", [](void) {
-		// 1分钟执行一次（每次都在0秒的时候执行）的定时器
-		Log("1 minute cron timer hit");
-	});
-
-	mgr->AddTimer("15;30;33 * * * * *", [](void) {
-		// 指定时间（15秒、30秒和33秒）点都会执行一次
-		Log("cron timer hit at 15s or 30s or 33s");
-	});
-
-	mgr->AddTimer("40-50 * * * * *", [](void) {
-		// 指定时间段（40到50内的每一秒）执行的定时器
-		Log("cron timer hit between 40s to 50s");
-	});
-
-	auto timer = mgr->AddTimer(3, [](void) {
-		// 3秒钟之后执行
-		Log("3 second delay timer hit");
-	});
-
-	// 可以在执行之前取消
-	timer->Cancel();
-
-	mgr->AddTimer(
-		10,
-		[](void) {
-			// 每10秒钟执行一次，总共执行3次
-			Log("10 second delay timer hit");
-		},
-		3);
-
-	while (!_shutDown) {
-		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		std::this_thread::sleep_until(nearest_timer);
+		mgr->Update();
 	}
 }
 
@@ -177,7 +124,6 @@ int main() {
 	signal(SIGINT, signal_hander);
 #endif
 
-	// TestCronTimerInMainThread();
-	TestCronTimerInSubThread();
+	TestCronTimerInMainThread();
 	return 0;
 }

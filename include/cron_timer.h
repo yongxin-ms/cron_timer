@@ -8,57 +8,59 @@
 #include <assert.h>
 #include <time.h>
 #include <cstring>
-#include <atomic>
-#include <thread>
 
 /*
-	cron_timer::TimerMgr mgr;
+	auto mgr = std::make_shared<cron_timer::TimerMgr>();
 
-	mgr.AddTimer("* * * * * *", [](void) {
-		// 每秒钟都会执行
+	mgr->AddTimer("* * * * * *", [](void) {
+		// 每秒钟都会执行一次
 		Log("1 second cron timer hit");
 	});
 
-	mgr.AddTimer("0/3 * * * * *", [](void) {
+	mgr->AddTimer("0/3 * * * * *", [](void) {
 		// 从0秒开始，每3秒钟执行一次
 		Log("3 second cron timer hit");
 	});
 
-	mgr.AddTimer("0 * * * * *", [](void) {
+	mgr->AddTimer("0 * * * * *", [](void) {
 		// 1分钟执行一次（每次都在0秒的时候执行）的定时器
 		Log("1 minute cron timer hit");
 	});
 
-	mgr.AddTimer("15;30;33 * * * * *", [](void) {
-		// 指定时间点执行的定时器
+	mgr->AddTimer("15;30;33 * * * * *", [](void) {
+		// 指定时间（15秒、30秒和33秒）点都会执行一次
 		Log("cron timer hit at 15s or 30s or 33s");
 	});
 
-	mgr.AddTimer("40-50 * * * * *", [](void) {
-		// 指定时间段执行的定时器
+	mgr->AddTimer("40-50 * * * * *", [](void) {
+		// 指定时间段（40到50内的每一秒）执行的定时器
 		Log("cron timer hit between 40s to 50s");
 	});
 
-	auto timer = mgr.AddTimer(3, [](void) {
+	auto timer = mgr->AddDelayTimer(3000, [](void) {
 		// 3秒钟之后执行
 		Log("3 second delay timer hit");
 	});
 
-	// 中途可以取消
+	// 可以在执行之前取消
 	timer->Cancel();
 
-	mgr.AddTimer(
-		10,
+	mgr->AddDelayTimer(
+		10000,
 		[](void) {
-			// 10秒钟之后执行
+			// 每10秒钟执行一次，总共执行3次
 			Log("10 second delay timer hit");
 		},
 		3);
 
 	while (!_shutDown) {
-		std::this_thread::sleep_for(std::chrono::milliseconds(10));
-		mgr.Update();
+		auto nearest_timer =
+			(std::min)(std::chrono::system_clock::now() + std::chrono::milliseconds(500), mgr->GetNearestTime());
+
+		std::this_thread::sleep_until(nearest_timer);
+		mgr->Update();
 	}
+
 */
 
 namespace cron_timer {
@@ -262,7 +264,7 @@ public:
 	std::list<std::shared_ptr<BaseTimer>>::iterator& GetIt() { return it_; }
 
 	virtual void DoFunc() = 0;
-	virtual time_t GetCurTime() const = 0;
+	virtual std::chrono::system_clock::time_point GetCurTime() const = 0;
 
 protected:
 	TimerMgr& owner_;
@@ -304,7 +306,7 @@ public:
 
 	virtual ~CronTimer() {}
 	inline void DoFunc() override;
-	time_t GetCurTime() const override {
+	std::chrono::system_clock::time_point GetCurTime() const override {
 		tm next_tm;
 		memset(&next_tm, 0, sizeof(next_tm));
 		next_tm.tm_sec = GetCurValue(CronExpression::DT_SECOND);
@@ -314,7 +316,7 @@ public:
 		next_tm.tm_mon = GetCurValue(CronExpression::DT_MONTH) - 1;
 		next_tm.tm_year = GetCurValue(CronExpression::DT_YEAR) - 1900;
 
-		return mktime(&next_tm);
+		return std::chrono::system_clock::from_time_t(mktime(&next_tm));
 	}
 
 private:
@@ -348,24 +350,24 @@ private:
 
 class LaterTimer : public BaseTimer {
 public:
-	LaterTimer(TimerMgr& owner, int seconds, const FUNC_CALLBACK& func, int count)
+	LaterTimer(TimerMgr& owner, int milliseconds, const FUNC_CALLBACK& func, int count)
 		: BaseTimer(owner, func)
-		, seconds_(seconds)
+		, mill_seconds_(milliseconds)
 		, count_left_(count) {
-		cur_time_ = time(nullptr);
+		cur_time_ = std::chrono::system_clock::now();
 		Next();
 	}
 
 	virtual ~LaterTimer() {}
 	inline void DoFunc() override;
-	time_t GetCurTime() const override { return cur_time_; }
+	std::chrono::system_clock::time_point GetCurTime() const override { return cur_time_; }
 
 private:
 	//前进到下一格
 	void Next() {
-		time_t time_now = time(nullptr);
+		auto time_now = std::chrono::system_clock::now();
 		while (true) {
-			cur_time_ += seconds_;
+			cur_time_ += std::chrono::milliseconds(mill_seconds_);
 			if (cur_time_ > time_now) {
 				break;
 			}
@@ -373,8 +375,8 @@ private:
 	}
 
 private:
-	const int seconds_;
-	time_t cur_time_;
+	const int mill_seconds_;
+	std::chrono::system_clock::time_point cur_time_;
 	int count_left_;
 };
 
@@ -384,22 +386,8 @@ public:
 		RUN_FOREVER = 0,
 	};
 
-	TimerMgr() { last_proc_ = time(nullptr); }
-	TimerMgr(const FUNC_CALLBACK& func) {
-		update_func_ = func;
-		last_proc_ = time(nullptr);
-		thread_stop_ = false;
-		thread_ = std::make_shared<std::thread>([this]() { this->ThreadProc(); });
-	}
-
-	~TimerMgr() {
-		timers_.clear();
-		if (thread_ != nullptr) {
-			thread_stop_ = true;
-			thread_->join();
-			thread_ = nullptr;
-		}
-	}
+	TimerMgr() {}
+	~TimerMgr() { timers_.clear(); }
 
 	// 新增一个Cron表达式的定时器，缺省永远执行
 	std::shared_ptr<BaseTimer> AddTimer(
@@ -430,22 +418,27 @@ public:
 	}
 
 	// 新增一个延时执行的定时器，缺省运行一次
-	std::shared_ptr<BaseTimer> AddTimer(int seconds, const FUNC_CALLBACK& func, int count = 1) {
-		assert(seconds > 0);
-		seconds = (std::max)(seconds, 1);
-		auto p = std::make_shared<LaterTimer>(*this, seconds, func, count);
+	std::shared_ptr<BaseTimer> AddDelayTimer(int milliseconds, const FUNC_CALLBACK& func, int count = 1) {
+		assert(milliseconds > 0);
+		milliseconds = (std::max)(milliseconds, 1);
+		auto p = std::make_shared<LaterTimer>(*this, milliseconds, func, count);
 		insert(p);
 		return p;
 	}
 
-	size_t Update() {
-		time_t time_now = time(nullptr);
-		size_t count = 0;
-		if (time_now == last_proc_)
-			return 0;
+	std::chrono::system_clock::time_point GetNearestTime() {
+		auto it = timers_.begin();
+		if (it == timers_.end()) {
+			return (std::chrono::system_clock::time_point::max)();
+		} else {
+			return it->first;
+		}
+	}
 
-		// 每秒执行一次
-		last_proc_ = time_now;
+	size_t Update() {
+		auto time_now = std::chrono::system_clock::now();
+		size_t count = 0;
+
 		for (auto it = timers_.begin(); it != timers_.end();) {
 			auto expire_time = it->first;
 			auto& timer_list = it->second;
@@ -466,7 +459,7 @@ public:
 	}
 
 	void insert(const std::shared_ptr<BaseTimer>& p) {
-		time_t t = p->GetCurTime();
+		auto t = p->GetCurTime();
 		auto it = timers_.find(t);
 		if (it == timers_.end()) {
 			std::list<std::shared_ptr<BaseTimer>> l;
@@ -479,7 +472,7 @@ public:
 	}
 
 	bool remove(const std::shared_ptr<BaseTimer>& p) {
-		time_t t = p->GetCurTime();
+		auto t = p->GetCurTime();
 		auto it = timers_.find(t);
 		if (it == timers_.end()) {
 			return false;
@@ -498,20 +491,7 @@ public:
 	}
 
 private:
-	void ThreadProc() {
-		while (!thread_stop_) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(50));
-			update_func_();
-		}
-	}
-
-private:
-	std::map<time_t, std::list<std::shared_ptr<BaseTimer>>> timers_;
-	time_t last_proc_ = 0;
-
-	FUNC_CALLBACK update_func_;
-	std::shared_ptr<std::thread> thread_;
-	std::atomic_bool thread_stop_;
+	std::map<std::chrono::system_clock::time_point, std::list<std::shared_ptr<BaseTimer>>> timers_;
 };
 
 void BaseTimer::Cancel() {
