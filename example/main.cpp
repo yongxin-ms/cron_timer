@@ -39,17 +39,22 @@ void signal_hander(int signo) //自定义一个函数处理信号
 }
 #endif
 
-std::string FormatDateTime(time_t t) {
-	tm this_tm;
+std::string FormatDateTime(const std::chrono::system_clock::time_point& time) {
+	uint64_t mill = std::chrono::duration_cast<std::chrono::milliseconds>(time.time_since_epoch()).count() -
+					std::chrono::duration_cast<std::chrono::seconds>(time.time_since_epoch()).count() * 1000;
+	char _time[64] = {0};
+	time_t tt = std::chrono::system_clock::to_time_t(time);
+	struct tm local_time;
+
 #ifdef _WIN32
-	localtime_s(&this_tm, &t);
+	localtime_s(&local_time, &tt);
 #else
-	localtime_r(&t, &this_tm);
+	localtime_r(&tt, &local_time);
 #endif // _WIN32
-	char data[64] = {0};
-	snprintf(data, sizeof(data) - 1, "%d-%02d-%02d %02d:%02d:%02d", this_tm.tm_year + 1900, this_tm.tm_mon + 1,
-		this_tm.tm_mday, this_tm.tm_hour, this_tm.tm_min, this_tm.tm_sec);
-	return std::string(data);
+
+	std::snprintf(_time, sizeof(_time), "%d-%02d-%02d %02d:%02d:%02d.%03llu", local_time.tm_year + 1900,
+		local_time.tm_mon + 1, local_time.tm_mday, local_time.tm_hour, local_time.tm_min, local_time.tm_sec, mill);
+	return std::string(_time);
 }
 
 void Log(const char* fmt, ...) {
@@ -59,7 +64,7 @@ void Log(const char* fmt, ...) {
 	vsnprintf(buf, sizeof(buf) - 1, fmt, args);
 	va_end(args);
 
-	std::string time_now = FormatDateTime(time(nullptr));
+	std::string time_now = FormatDateTime(std::chrono::system_clock::now());
 	printf("%s %s\n", time_now.c_str(), buf);
 }
 

@@ -257,11 +257,14 @@ class BaseTimer : public std::enable_shared_from_this<BaseTimer> {
 public:
 	BaseTimer(TimerMgr& owner, const FUNC_CALLBACK& func)
 		: owner_(owner)
-		, func_(func) {}
+		, func_(func)
+		, is_in_list_(false) {}
 
 	inline void Cancel();
 	void SetIt(const std::list<std::shared_ptr<BaseTimer>>::iterator& it) { it_ = it; }
 	std::list<std::shared_ptr<BaseTimer>>::iterator& GetIt() { return it_; }
+	bool GetIsInList() const { return is_in_list_; }
+	void SetIsInList(bool b) { is_in_list_ = b; }
 
 	virtual void DoFunc() = 0;
 	virtual std::chrono::system_clock::time_point GetCurTime() const = 0;
@@ -270,6 +273,7 @@ protected:
 	TimerMgr& owner_;
 	const FUNC_CALLBACK func_;
 	std::list<std::shared_ptr<BaseTimer>>::iterator it_;
+	bool is_in_list_;
 };
 
 class CronTimer : public BaseTimer {
@@ -459,6 +463,8 @@ public:
 	}
 
 	void insert(const std::shared_ptr<BaseTimer>& p) {
+		assert(!p->GetIsInList());
+
 		auto t = p->GetCurTime();
 		auto it = timers_.find(t);
 		if (it == timers_.end()) {
@@ -469,24 +475,28 @@ public:
 
 		auto& l = it->second;
 		p->SetIt(l.insert(l.end(), p));
+		p->SetIsInList(true);
 	}
 
 	bool remove(const std::shared_ptr<BaseTimer>& p) {
+		assert(p->GetIsInList());
+
 		auto t = p->GetCurTime();
 		auto it = timers_.find(t);
 		if (it == timers_.end()) {
+			assert(false);
 			return false;
 		}
 
 		auto& l = it->second;
 		if (p->GetIt() == l.end()) {
-			// 删除了多次？
 			assert(false);
 			return false;
 		}
 
 		l.erase(p->GetIt());
 		p->SetIt(l.end());
+		p->SetIsInList(false);
 		return true;
 	}
 
@@ -495,6 +505,10 @@ private:
 };
 
 void BaseTimer::Cancel() {
+	if (!GetIsInList()) {
+		return;
+	}
+
 	auto self = shared_from_this();
 	owner_.remove(self);
 }
