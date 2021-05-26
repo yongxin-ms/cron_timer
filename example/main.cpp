@@ -52,7 +52,7 @@ std::string FormatDateTime(const std::chrono::system_clock::time_point& time) {
 	localtime_r(&tt, &local_time);
 #endif // _WIN32
 
-	std::snprintf(_time, sizeof(_time), "%d-%02d-%02d %02d:%02d:%02d.%03llu", local_time.tm_year + 1900,
+	std::snprintf(_time, sizeof(_time), "%d-%02d-%02d %02d:%02d:%02d.%03ju", local_time.tm_year + 1900,
 		local_time.tm_mon + 1, local_time.tm_mday, local_time.tm_hour, local_time.tm_min, local_time.tm_sec, mill);
 	return std::string(_time);
 }
