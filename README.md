@@ -4,7 +4,7 @@
 
 
 
-待办事项：
+## 待办事项：
 
 | 编号 | 内容                                                         | 状态                    |
 | ---- | ------------------------------------------------------------ | ----------------------- |
@@ -17,7 +17,7 @@
 
 
 
-特点：
+## 特点：
 
 1.对时间的表达能力强
 
@@ -42,6 +42,8 @@ CronTab表达式已经在Linux平台上广泛使用，需求久经考验
 对于定时器内的对象个数，时间判断的时间复杂度做到了O(log(n))
 
 
+
+## 使用示例
 
 在主线程中触发定时器事件的例子：
 
@@ -101,7 +103,58 @@ CronTab表达式已经在Linux平台上广泛使用，需求久经考验
 
 
 
-一些思路：
+## 测试数据
+
+精度有多高，**误差0毫秒**，数据说话：
+
+```
+2021-05-28 15:13:45.143 10 second delay timer added
+2021-05-28 15:13:45.143 1 second cron timer hit
+2021-05-28 15:13:45.143 3 second cron timer hit
+2021-05-28 15:13:45.143 cron timer hit between 40s to 50s
+2021-05-28 15:13:46.000 1 second cron timer hit
+2021-05-28 15:13:46.000 cron timer hit between 40s to 50s
+2021-05-28 15:13:47.000 1 second cron timer hit
+2021-05-28 15:13:47.000 cron timer hit between 40s to 50s
+2021-05-28 15:13:48.000 3 second cron timer hit
+2021-05-28 15:13:48.000 1 second cron timer hit
+2021-05-28 15:13:48.000 cron timer hit between 40s to 50s
+2021-05-28 15:13:49.000 1 second cron timer hit
+2021-05-28 15:13:49.000 cron timer hit between 40s to 50s
+2021-05-28 15:13:50.000 1 second cron timer hit
+2021-05-28 15:13:50.000 cron timer hit between 40s to 50s
+2021-05-28 15:13:51.000 3 second cron timer hit
+2021-05-28 15:13:51.000 1 second cron timer hit
+2021-05-28 15:13:52.000 1 second cron timer hit
+2021-05-28 15:13:53.000 1 second cron timer hit
+2021-05-28 15:13:54.000 3 second cron timer hit
+2021-05-28 15:13:54.000 1 second cron timer hit
+2021-05-28 15:13:55.000 1 second cron timer hit
+2021-05-28 15:13:55.143 10 second delay timer hit
+2021-05-28 15:13:56.000 1 second cron timer hit
+2021-05-28 15:13:57.000 3 second cron timer hit
+2021-05-28 15:13:57.000 1 second cron timer hit
+2021-05-28 15:13:58.000 1 second cron timer hit
+2021-05-28 15:13:59.000 1 second cron timer hit
+2021-05-28 15:14:00.000 1 minute cron timer hit
+2021-05-28 15:14:00.000 3 second cron timer hit
+2021-05-28 15:14:00.000 1 second cron timer hit
+2021-05-28 15:14:01.000 1 second cron timer hit
+2021-05-28 15:14:02.000 1 second cron timer hit
+2021-05-28 15:14:03.000 3 second cron timer hit
+2021-05-28 15:14:03.000 1 second cron timer hit
+2021-05-28 15:14:04.000 1 second cron timer hit
+2021-05-28 15:14:05.000 1 second cron timer hit
+2021-05-28 15:14:05.143 10 second delay timer hit
+2021-05-28 15:14:06.000 3 second cron timer hit
+2021-05-28 15:14:06.000 1 second cron timer hit
+2021-05-28 15:14:07.000 1 second cron timer hit
+
+```
+
+
+
+## 一些思路：
 
 1.为什么没有使用时间轮？
 
