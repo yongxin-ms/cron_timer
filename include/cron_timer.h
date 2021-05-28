@@ -254,9 +254,9 @@ using FUNC_CALLBACK = std::function<void()>;
 
 class BaseTimer : public std::enable_shared_from_this<BaseTimer> {
 public:
-	BaseTimer(TimerMgr& owner, const FUNC_CALLBACK& func)
+	BaseTimer(TimerMgr& owner, FUNC_CALLBACK&& func)
 		: owner_(owner)
-		, func_(func)
+		, func_(std::move(func))
 		, is_in_list_(false) {}
 
 	inline void Cancel();
@@ -270,16 +270,16 @@ public:
 
 protected:
 	TimerMgr& owner_;
-	const FUNC_CALLBACK func_;
+	FUNC_CALLBACK func_;
 	std::list<std::shared_ptr<BaseTimer>>::iterator it_;
 	bool is_in_list_;
 };
 
 class CronTimer : public BaseTimer {
 public:
-	CronTimer(TimerMgr& owner, const std::vector<CronWheel>& wheels, const FUNC_CALLBACK& func, int count)
-		: BaseTimer(owner, func)
-		, wheels_(wheels)
+	CronTimer(TimerMgr& owner, std::vector<CronWheel>&& wheels, FUNC_CALLBACK&& func, int count)
+		: BaseTimer(owner, std::move(func))
+		, wheels_(std::move(wheels))
 		, over_flowed_(false)
 		, count_left_(count) {
 		tm local_tm;
@@ -353,8 +353,8 @@ private:
 
 class LaterTimer : public BaseTimer {
 public:
-	LaterTimer(TimerMgr& owner, int milliseconds, const FUNC_CALLBACK& func, int count)
-		: BaseTimer(owner, func)
+	LaterTimer(TimerMgr& owner, int milliseconds, FUNC_CALLBACK&& func, int count)
+		: BaseTimer(owner, std::move(func))
 		, mill_seconds_(milliseconds)
 		, count_left_(count) {
 		cur_time_ = std::chrono::system_clock::now();
@@ -389,12 +389,18 @@ public:
 		RUN_FOREVER = 0,
 	};
 
-	TimerMgr() {}
-	~TimerMgr() { timers_.clear(); }
+	void Stop() {
+		timers_.clear();
+		stopped_ = true;
+	 }
 
 	// 新增一个Cron表达式的定时器，缺省永远执行
 	std::shared_ptr<BaseTimer> AddTimer(
-		const std::string& timer_string, const FUNC_CALLBACK& func, int count = RUN_FOREVER) {
+		const std::string& timer_string, FUNC_CALLBACK&& func, int count = RUN_FOREVER) {
+		if (stopped_) {
+			return nullptr;
+		 }
+
 		std::vector<std::string> v;
 		Text::SplitStr(v, timer_string, ' ');
 		if (v.size() != CronExpression::DT_MAX) {
@@ -415,16 +421,20 @@ public:
 			wheels.emplace_back(wheel);
 		}
 
-		auto p = std::make_shared<CronTimer>(*this, wheels, func, count);
+		auto p = std::make_shared<CronTimer>(*this, std::move(wheels), std::move(func), count);
 		insert(p);
 		return p;
 	}
 
 	// 新增一个延时执行的定时器，缺省运行一次
-	std::shared_ptr<BaseTimer> AddDelayTimer(int milliseconds, const FUNC_CALLBACK& func, int count = 1) {
+	std::shared_ptr<BaseTimer> AddDelayTimer(int milliseconds, FUNC_CALLBACK&& func, int count = 1) {
+		if (stopped_) {
+			return nullptr;
+		}
+
 		assert(milliseconds > 0);
 		milliseconds = (std::max)(milliseconds, 1);
-		auto p = std::make_shared<LaterTimer>(*this, milliseconds, func, count);
+		auto p = std::make_shared<LaterTimer>(*this, milliseconds, std::move(func), count);
 		insert(p);
 		return p;
 	}
@@ -501,6 +511,7 @@ public:
 
 private:
 	std::map<std::chrono::system_clock::time_point, std::list<std::shared_ptr<BaseTimer>>> timers_;
+	bool stopped_ = false;
 };
 
 void BaseTimer::Cancel() {
