@@ -10,7 +10,7 @@
 | ---- | ------------------------------------------------------------ | ----------------------- |
 | 1    | 参考一下 https://www.zhihu.com/question/32251997/answer/1899420964?content_id=1379404441725026304&type=zvideo 优化定时器的出发逻辑 | 20210525，xinyong已完成 |
 | 2    | 在Update函数中查找最近的定时器，然后可以等待较长的时间，降低执行次数，提升效率 | 20210525，xinyong已完成 |
-|      |                                                              |                         |
+| 3    | 日志的时间表示从毫秒改成微秒，让误差更有说服力               | 20210611, xinyong已完成 |
 |      |                                                              |                         |
 
 
@@ -21,7 +21,7 @@
 
 1. 对时间的表达能力强，CronTab表达式已经在Linux平台上广泛使用，可以参考 https://www.bejson.com/othertools/cron/?ivk_sa=1024320u 生成表达式，本组件对这个表达式少有修改，具体可以参考示例代码。
 2. 使用方便，一个头文件搞定一切，拷贝过去就可以使用，不依赖第三方库，Windows、Centos、Ubuntu、Mac都可以运行。一行代码添加一个定时器，可传入成员函数，携带自定义参数。
-3. 精度高、误差不累积，实测误差0毫秒。
+3. 精度高、误差不累积，实测误差小于1毫秒。
 4. 性能好，对于定时器内的对象个数，时间判断的时间复杂度做到了O(log(n))，可以支持海量的定时器对象。
 
 
@@ -86,50 +86,45 @@
 
 ## 测试数据
 
-精度有多高，**误差0毫秒**，数据说话：
+精度有多高，**误差小于1毫秒**，数据说话：
 
 ```
-2021-05-28 15:13:45.143 10 second delay timer added
-2021-05-28 15:13:45.143 1 second cron timer hit
-2021-05-28 15:13:45.143 3 second cron timer hit
-2021-05-28 15:13:45.143 cron timer hit between 40s to 50s
-2021-05-28 15:13:46.000 1 second cron timer hit
-2021-05-28 15:13:46.000 cron timer hit between 40s to 50s
-2021-05-28 15:13:47.000 1 second cron timer hit
-2021-05-28 15:13:47.000 cron timer hit between 40s to 50s
-2021-05-28 15:13:48.000 3 second cron timer hit
-2021-05-28 15:13:48.000 1 second cron timer hit
-2021-05-28 15:13:48.000 cron timer hit between 40s to 50s
-2021-05-28 15:13:49.000 1 second cron timer hit
-2021-05-28 15:13:49.000 cron timer hit between 40s to 50s
-2021-05-28 15:13:50.000 1 second cron timer hit
-2021-05-28 15:13:50.000 cron timer hit between 40s to 50s
-2021-05-28 15:13:51.000 3 second cron timer hit
-2021-05-28 15:13:51.000 1 second cron timer hit
-2021-05-28 15:13:52.000 1 second cron timer hit
-2021-05-28 15:13:53.000 1 second cron timer hit
-2021-05-28 15:13:54.000 3 second cron timer hit
-2021-05-28 15:13:54.000 1 second cron timer hit
-2021-05-28 15:13:55.000 1 second cron timer hit
-2021-05-28 15:13:55.143 10 second delay timer hit
-2021-05-28 15:13:56.000 1 second cron timer hit
-2021-05-28 15:13:57.000 3 second cron timer hit
-2021-05-28 15:13:57.000 1 second cron timer hit
-2021-05-28 15:13:58.000 1 second cron timer hit
-2021-05-28 15:13:59.000 1 second cron timer hit
-2021-05-28 15:14:00.000 1 minute cron timer hit
-2021-05-28 15:14:00.000 3 second cron timer hit
-2021-05-28 15:14:00.000 1 second cron timer hit
-2021-05-28 15:14:01.000 1 second cron timer hit
-2021-05-28 15:14:02.000 1 second cron timer hit
-2021-05-28 15:14:03.000 3 second cron timer hit
-2021-05-28 15:14:03.000 1 second cron timer hit
-2021-05-28 15:14:04.000 1 second cron timer hit
-2021-05-28 15:14:05.000 1 second cron timer hit
-2021-05-28 15:14:05.143 10 second delay timer hit
-2021-05-28 15:14:06.000 3 second cron timer hit
-2021-05-28 15:14:06.000 1 second cron timer hit
-2021-05-28 15:14:07.000 1 second cron timer hit
+2021-06-11 22:25:31.017870 10 second delay timer added
+2021-06-11 22:25:31.017937 1 second cron timer hit
+2021-06-11 22:25:32.000337 1 second cron timer hit
+2021-06-11 22:25:33.000450 3 second cron timer hit
+2021-06-11 22:25:33.000508 cron timer hit at 15s or 30s or 33s
+2021-06-11 22:25:33.000534 1 second cron timer hit
+2021-06-11 22:25:34.000368 1 second cron timer hit
+2021-06-11 22:25:35.000398 1 second cron timer hit
+2021-06-11 22:25:36.000455 3 second cron timer hit
+2021-06-11 22:25:36.000512 1 second cron timer hit
+2021-06-11 22:25:37.000385 1 second cron timer hit
+2021-06-11 22:25:38.000349 1 second cron timer hit
+2021-06-11 22:25:39.000380 3 second cron timer hit
+2021-06-11 22:25:39.000449 1 second cron timer hit
+2021-06-11 22:25:40.000544 cron timer hit between 40s to 50s
+2021-06-11 22:25:40.000603 1 second cron timer hit
+2021-06-11 22:25:41.000307 cron timer hit between 40s to 50s
+2021-06-11 22:25:41.000361 1 second cron timer hit
+2021-06-11 22:25:41.017942 10 second delay timer hit
+2021-06-11 22:25:42.000431 3 second cron timer hit
+2021-06-11 22:25:42.000488 cron timer hit between 40s to 50s
+2021-06-11 22:25:42.000525 1 second cron timer hit
+2021-06-11 22:25:43.000369 cron timer hit between 40s to 50s
+2021-06-11 22:25:43.000425 1 second cron timer hit
+2021-06-11 22:25:44.000370 cron timer hit between 40s to 50s
+2021-06-11 22:25:44.000424 1 second cron timer hit
+2021-06-11 22:25:45.000447 3 second cron timer hit
+2021-06-11 22:25:45.000505 cron timer hit between 40s to 50s
+2021-06-11 22:25:45.000532 1 second cron timer hit
+2021-06-11 22:25:46.000357 cron timer hit between 40s to 50s
+2021-06-11 22:25:46.000411 1 second cron timer hit
+2021-06-11 22:25:47.000355 cron timer hit between 40s to 50s
+2021-06-11 22:25:47.000408 1 second cron timer hit
+2021-06-11 22:25:48.000438 3 second cron timer hit
+2021-06-11 22:25:48.000496 cron timer hit between 40s to 50s
+2021-06-11 22:25:48.000522 1 second cron timer hit
 
 ```
 
@@ -141,5 +136,7 @@
 
 答：时间轮定时器作为延时触发是很合适的，时间复杂度都是O(1)的，但是对于在固定时间点触发的定时器，我觉得会有累积误差，我暂时还没找到解决的方法，所以使用了红黑树，红黑树的时间复杂度是O（log(N)）的，性能也不错。
 
+2.为什么误差能做到1毫秒以下？
 
+答：对于定时器组件，需要提供一个“获取最近即将触发的时间”这样一个接口，有了这样一个接口，在消息队列中就可以做到堆这个时间的精确等待，这个等待操作不是简单的sleep几毫秒，是使用了CPU硬件提供的计时器功能，超时的时候触发一个中断。当然重要的是红黑树LogN的时间复杂度在发挥作用。
 
