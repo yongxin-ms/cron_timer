@@ -40,8 +40,8 @@ void signal_hander(int signo) //自定义一个函数处理信号
 #endif
 
 std::string FormatDateTime(const std::chrono::system_clock::time_point& time) {
-	uint64_t mill = std::chrono::duration_cast<std::chrono::milliseconds>(time.time_since_epoch()).count() -
-					std::chrono::duration_cast<std::chrono::seconds>(time.time_since_epoch()).count() * 1000;
+	uint64_t micro = std::chrono::duration_cast<std::chrono::microseconds>(time.time_since_epoch()).count() -
+					std::chrono::duration_cast<std::chrono::seconds>(time.time_since_epoch()).count() * 1000000;
 	char _time[64] = {0};
 	time_t tt = std::chrono::system_clock::to_time_t(time);
 	struct tm local_time;
@@ -52,8 +52,8 @@ std::string FormatDateTime(const std::chrono::system_clock::time_point& time) {
 	localtime_r(&tt, &local_time);
 #endif // _WIN32
 
-	std::snprintf(_time, sizeof(_time), "%d-%02d-%02d %02d:%02d:%02d.%03ju", local_time.tm_year + 1900,
-		local_time.tm_mon + 1, local_time.tm_mday, local_time.tm_hour, local_time.tm_min, local_time.tm_sec, mill);
+	std::snprintf(_time, sizeof(_time), "%d-%02d-%02d %02d:%02d:%02d.%06ju", local_time.tm_year + 1900,
+		local_time.tm_mon + 1, local_time.tm_mday, local_time.tm_hour, local_time.tm_min, local_time.tm_sec, micro);
 	return std::string(_time);
 }
 
