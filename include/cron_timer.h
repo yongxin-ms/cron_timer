@@ -37,13 +37,15 @@
 		Log("cron timer hit between 40s to 50s");
 	});
 
-	auto timer = mgr.AddDelayTimer(3000, [](void) {
+	std::weak_ptr<cron_timer::BaseTimer> timer = mgr.AddDelayTimer(3000, [](void) {
 		// 3秒钟之后执行
 		Log("3 second delay timer hit");
 	});
 
 	// 可以在执行之前取消
-	timer->Cancel();
+	if (auto ptr = timer.lock(); ptr != nullptr) {
+		ptr->Cancel();
+	}
 
 	mgr.AddDelayTimer(
 		10000,

@@ -3,7 +3,7 @@
 set(PROJECT_NAME CronTimerExample)
 project(${PROJECT_NAME})
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 if (CMAKE_SYSTEM_NAME MATCHES "Linux")
 	set(CMAKE_CXX_FLAGS "-g -Wall -pthread")

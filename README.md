@@ -11,7 +11,7 @@
 | 1    | 参考一下 https://www.zhihu.com/question/32251997/answer/1899420964?content_id=1379404441725026304&type=zvideo 优化定时器的出发逻辑 | 20210525，xinyong已完成 |
 | 2    | 在Update函数中查找最近的定时器，然后可以等待较长的时间，降低执行次数，提升效率 | 20210525，xinyong已完成 |
 | 3    | 日志的时间表示从毫秒改成微秒，让误差更有说服力               | 20210611, xinyong已完成 |
-| 4    | AddTimer的返回值应该是一个weak_ptr，当执行完毕之后其引用自动变为null_ptr |                         |
+| 4    | AddTimer的返回值应该由一个weak_ptr来接，当执行完毕之后其引用自动变为null_ptr | 20210628, xinyong已完成 |
 |      |                                                              |                         |
 |      |                                                              |                         |
 |      |                                                              |                         |
@@ -59,13 +59,15 @@
 		Log("cron timer hit between 40s to 50s");
 	});
 
-	auto timer = mgr.AddDelayTimer(3000, [](void) {
+	std::weak_ptr<cron_timer::BaseTimer> timer = mgr.AddDelayTimer(3000, [](void) {
 		// 3秒钟之后执行
 		Log("3 second delay timer hit");
 	});
 
 	// 可以在执行之前取消
-	timer->Cancel();
+	if (auto ptr = timer.lock(); ptr != nullptr) {
+		ptr->Cancel();
+	}
 
 	mgr.AddDelayTimer(
 		10000,
