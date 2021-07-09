@@ -67,6 +67,7 @@
 namespace cron_timer {
 class Text {
 public:
+	// 主要用来切分使用空格分隔的字符串，连续的空格算作一个分隔符
 	static size_t SplitStr(std::vector<std::string>& os, const std::string& is, char c) {
 		os.clear();
 		auto start = is.find_first_not_of(c, 0);
@@ -102,6 +103,7 @@ public:
 		return result;
 	}
 
+	// 主要用来切分使用逗号分隔的字符串，连续的逗号算作多个分隔符
 	static size_t ParseParam(std::vector<std::string>& result, const std::string& is, char c) {
 		result.clear();
 		size_t start = 0;
@@ -117,7 +119,7 @@ public:
 		}
 
 		if (start == is.size()) {
-			result.emplace_back("");
+			result.emplace_back(std::string());
 		}
 		return result.size();
 	}
