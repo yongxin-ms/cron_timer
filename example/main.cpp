@@ -68,6 +68,27 @@ void Log(const char* fmt, ...) {
 	printf("%s %s\n", time_now.c_str(), buf);
 }
 
+void TestSplitStr() {
+	std::vector<std::string> v;
+	assert(cron_timer::Text::SplitStr(v, "", ' ') == 0);
+	assert(cron_timer::Text::SplitStr(v, " ", ' ') == 0);
+	assert(cron_timer::Text::SplitStr(v, "a", ' ') == 1);
+	assert(cron_timer::Text::SplitStr(v, "abcc", ' ') == 1);
+	assert(cron_timer::Text::SplitStr(v, "abc def", ' ') == 2);
+	assert(cron_timer::Text::SplitStr(v, " abc def", ' ') == 2);
+	assert(cron_timer::Text::SplitStr(v, " abc def ", ' ') == 2);
+	assert(cron_timer::Text::SplitStr(v, "  abc   def ", ' ') == 2);
+
+	assert(cron_timer::Text::ParseParam(v, "", ',') == 1);
+	assert(cron_timer::Text::ParseParam(v, " ", ',') == 1);
+	assert(cron_timer::Text::ParseParam(v, "a", ',') == 1);
+	assert(cron_timer::Text::ParseParam(v, "abcc", ',') == 1);
+	assert(cron_timer::Text::ParseParam(v, "abc,def", ',') == 2);
+	assert(cron_timer::Text::ParseParam(v, "abc,,def", ',') == 3);
+	assert(cron_timer::Text::ParseParam(v, ",,abc,,,def,,", ',') == 8);
+	assert(cron_timer::Text::ParseParam(v, ",,,", ',') == 4);
+}
+
 void TestCronTimerInMainThread() {
 	cron_timer::TimerMgr mgr;
 
@@ -131,6 +152,7 @@ int main() {
 	signal(SIGINT, signal_hander);
 #endif
 
+	TestSplitStr();
 	TestCronTimerInMainThread();
 	return 0;
 }

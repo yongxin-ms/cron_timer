@@ -67,28 +67,23 @@
 namespace cron_timer {
 class Text {
 public:
-	static size_t SplitStr(std::vector<std::string>& os, const std::string& is, const char c) {
+	static size_t SplitStr(std::vector<std::string>& os, const std::string& is, char c) {
 		os.clear();
-		std::string::size_type pos_find = is.find_first_of(c, 0);
-		std::string::size_type pos_last_find = 0;
-		while (std::string::npos != pos_find) {
-			std::string::size_type num_char = pos_find - pos_last_find;
-			os.emplace_back(is.substr(pos_last_find, num_char));
-
-			pos_last_find = pos_find + 1;
-			pos_find = is.find_first_of(c, pos_last_find);
+		auto start = is.find_first_not_of(c, 0);
+		while (start != std::string::npos) {
+			auto end = is.find_first_of(c, start);
+			if (end == std::string::npos) {
+				os.emplace_back(is.substr(start));
+				break;
+			} else {
+				os.emplace_back(is.substr(start, end - start));
+				start = is.find_first_not_of(c, end + 1);
+			}
 		}
-
-		std::string::size_type num_char = is.length() - pos_last_find;
-		if (num_char > is.length())
-			num_char = is.length();
-
-		std::string sub = is.substr(pos_last_find, num_char);
-		os.emplace_back(sub);
 		return os.size();
 	}
 
-	static size_t SplitInt(std::vector<int>& number_result, const std::string& is, const char c) {
+	static size_t SplitInt(std::vector<int>& number_result, const std::string& is, char c) {
 		std::vector<std::string> string_result;
 		SplitStr(string_result, is, c);
 
@@ -99,6 +94,32 @@ public:
 		}
 
 		return number_result.size();
+	}
+
+	static std::vector<std::string> ParseParam(const std::string& is, char c) {
+		std::vector<std::string> result;
+		ParseParam(result, is, c);
+		return result;
+	}
+
+	static size_t ParseParam(std::vector<std::string>& result, const std::string& is, char c) {
+		result.clear();
+		size_t start = 0;
+		while (start < is.size()) {
+			auto end = is.find_first_of(c, start);
+			if (end != std::string::npos) {
+				result.emplace_back(is.substr(start, end - start));
+				start = end + 1;
+			} else {
+				result.emplace_back(is.substr(start));
+				break;
+			}
+		}
+
+		if (start == is.size()) {
+			result.emplace_back("");
+		}
+		return result.size();
 	}
 };
 
