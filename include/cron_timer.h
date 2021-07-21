@@ -551,22 +551,30 @@ void BaseTimer::Cancel() {
 void CronTimer::DoFunc() {
 	func_();
 	auto self = shared_from_this();
-	owner_.remove(self);
 
-	Next(CronExpression::DT_SECOND);
-	if ((count_left_ <= TimerMgr::RUN_FOREVER || --count_left_ > 0) && !over_flowed_) {
-		owner_.insert(self);
+	// 可能用户在定时器中取消了自己
+	if (GetIsInList()) {
+		owner_.remove(self);
+
+		Next(CronExpression::DT_SECOND);
+		if ((count_left_ <= TimerMgr::RUN_FOREVER || --count_left_ > 0) && !over_flowed_) {
+			owner_.insert(self);
+		}
 	}
 }
 
 void LaterTimer::DoFunc() {
 	func_();
 	auto self = shared_from_this();
-	owner_.remove(self);
 
-	if (count_left_ <= TimerMgr::RUN_FOREVER || --count_left_ > 0) {
-		Next();
-		owner_.insert(self);
+	// 可能用户在定时器中取消了自己
+	if (GetIsInList()) {
+		owner_.remove(self);
+
+		if (count_left_ <= TimerMgr::RUN_FOREVER || --count_left_ > 0) {
+			Next();
+			owner_.insert(self);
+		}
 	}
 }
 
