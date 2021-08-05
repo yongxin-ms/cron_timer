@@ -274,10 +274,11 @@ struct CronWheel {
 	std::vector<int> values;
 };
 
-class TimerMgr;
 using FUNC_CALLBACK = std::function<void()>;
 
 class BaseTimer : public std::enable_shared_from_this<BaseTimer> {
+	friend class TimerMgr;
+
 public:
 	BaseTimer(TimerMgr& owner, FUNC_CALLBACK&& func)
 		: owner_(owner)
@@ -285,8 +286,10 @@ public:
 		, is_in_list_(false) {}
 
 	inline void Cancel();
-	void SetIt(const std::list<std::shared_ptr<BaseTimer>>::iterator& it) { it_ = it; }
+
+protected:
 	std::list<std::shared_ptr<BaseTimer>>::iterator& GetIt() { return it_; }
+	void SetIt(const std::list<std::shared_ptr<BaseTimer>>::iterator& it) { it_ = it; }
 	bool GetIsInList() const { return is_in_list_; }
 	void SetIsInList(bool b) { is_in_list_ = b; }
 
@@ -301,6 +304,8 @@ protected:
 };
 
 class CronTimer : public BaseTimer {
+	friend class TimerMgr;
+
 public:
 	CronTimer(TimerMgr& owner, std::vector<CronWheel>&& wheels, FUNC_CALLBACK&& func, int count)
 		: BaseTimer(owner, std::move(func))
@@ -377,6 +382,8 @@ private:
 };
 
 class LaterTimer : public BaseTimer {
+	friend class TimerMgr;
+
 public:
 	LaterTimer(TimerMgr& owner, int milliseconds, FUNC_CALLBACK&& func, int count)
 		: BaseTimer(owner, std::move(func))
@@ -409,15 +416,23 @@ private:
 };
 
 class TimerMgr {
+	friend class BaseTimer;
+	friend class CronTimer;
+	friend class LaterTimer;
+
 public:
-	enum {
-		RUN_FOREVER = 0,
-	};
+	TimerMgr() {}
+	TimerMgr(const TimerMgr&) = delete;
+	const TimerMgr& operator=(const TimerMgr&) = delete;
 
 	void Stop() {
 		timers_.clear();
 		stopped_ = true;
 	 }
+
+	enum {
+		 RUN_FOREVER = 0,
+	 };
 
 	// 新增一个Cron表达式的定时器，缺省永远执行
 	std::shared_ptr<BaseTimer> AddTimer(
@@ -496,6 +511,7 @@ public:
 		return count;
 	}
 
+private:
 	void insert(const std::shared_ptr<BaseTimer>& p) {
 		assert(!p->GetIsInList());
 
@@ -550,10 +566,10 @@ void BaseTimer::Cancel() {
 
 void CronTimer::DoFunc() {
 	func_();
-	auto self = shared_from_this();
 
 	// 可能用户在定时器中取消了自己
 	if (GetIsInList()) {
+		auto self = shared_from_this();
 		owner_.remove(self);
 
 		Next(CronExpression::DT_SECOND);
@@ -565,10 +581,10 @@ void CronTimer::DoFunc() {
 
 void LaterTimer::DoFunc() {
 	func_();
-	auto self = shared_from_this();
-
+	
 	// 可能用户在定时器中取消了自己
 	if (GetIsInList()) {
+		auto self = shared_from_this();
 		owner_.remove(self);
 
 		if (count_left_ <= TimerMgr::RUN_FOREVER || --count_left_ > 0) {
