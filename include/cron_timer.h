@@ -274,6 +274,7 @@ struct CronWheel {
 	std::vector<int> values;
 };
 
+class TimerMgr;
 using FUNC_CALLBACK = std::function<void()>;
 
 class BaseTimer : public std::enable_shared_from_this<BaseTimer> {
