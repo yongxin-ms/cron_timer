@@ -285,6 +285,7 @@ public:
 		: owner_(owner)
 		, func_(std::move(func))
 		, is_in_list_(false) {}
+	virtual BaseTimer() {}
 
 	inline void Cancel();
 
@@ -338,7 +339,6 @@ public:
 		}
 	}
 
-	virtual ~CronTimer() {}
 	inline void DoFunc() override;
 	std::chrono::system_clock::time_point GetCurTime() const override {
 		tm next_tm;
@@ -394,7 +394,6 @@ public:
 		Next();
 	}
 
-	virtual ~LaterTimer() {}
 	inline void DoFunc() override;
 	std::chrono::system_clock::time_point GetCurTime() const override { return cur_time_; }
 
