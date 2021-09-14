@@ -275,7 +275,9 @@ struct CronWheel {
 };
 
 class TimerMgr;
+class BaseTimer;
 using FUNC_CALLBACK = std::function<void()>;
+using TimerPtr = std::shared_ptr<BaseTimer>;
 
 class BaseTimer : public std::enable_shared_from_this<BaseTimer> {
 	friend class TimerMgr;
@@ -285,13 +287,13 @@ public:
 		: owner_(owner)
 		, func_(std::move(func))
 		, is_in_list_(false) {}
-	virtual BaseTimer() {}
+	virtual ~BaseTimer() {}
 
 	inline void Cancel();
 
 protected:
-	std::list<std::shared_ptr<BaseTimer>>::iterator& GetIt() { return it_; }
-	void SetIt(const std::list<std::shared_ptr<BaseTimer>>::iterator& it) { it_ = it; }
+	std::list<TimerPtr>::iterator& GetIt() { return it_; }
+	void SetIt(const std::list<TimerPtr>::iterator& it) { it_ = it; }
 	bool GetIsInList() const { return is_in_list_; }
 	void SetIsInList(bool b) { is_in_list_ = b; }
 
@@ -301,7 +303,7 @@ protected:
 protected:
 	TimerMgr& owner_;
 	FUNC_CALLBACK func_;
-	std::list<std::shared_ptr<BaseTimer>>::iterator it_;
+	std::list<TimerPtr>::iterator it_;
 	bool is_in_list_;
 };
 
@@ -435,7 +437,7 @@ public:
 	 };
 
 	// 新增一个Cron表达式的定时器，缺省永远执行
-	std::shared_ptr<BaseTimer> AddTimer(
+	TimerPtr AddTimer(
 		const std::string& timer_string, FUNC_CALLBACK&& func, int count = RUN_FOREVER) {
 		if (stopped_) {
 			return nullptr;
@@ -467,7 +469,7 @@ public:
 	}
 
 	// 新增一个延时执行的定时器，缺省运行一次
-	std::shared_ptr<BaseTimer> AddDelayTimer(int milliseconds, FUNC_CALLBACK&& func, int count = 1) {
+	TimerPtr AddDelayTimer(int milliseconds, FUNC_CALLBACK&& func, int count = 1) {
 		if (stopped_) {
 			return nullptr;
 		}
@@ -512,13 +514,13 @@ public:
 	}
 
 private:
-	void insert(const std::shared_ptr<BaseTimer>& p) {
+	void insert(const TimerPtr& p) {
 		assert(!p->GetIsInList());
 
 		auto t = p->GetCurTime();
 		auto it = timers_.find(t);
 		if (it == timers_.end()) {
-			std::list<std::shared_ptr<BaseTimer>> l;
+			std::list<TimerPtr> l;
 			timers_.insert(std::make_pair(t, l));
 			it = timers_.find(t);
 		}
@@ -528,7 +530,7 @@ private:
 		p->SetIsInList(true);
 	}
 
-	bool remove(const std::shared_ptr<BaseTimer>& p) {
+	bool remove(const TimerPtr& p) {
 		assert(p->GetIsInList());
 
 		auto t = p->GetCurTime();
@@ -551,7 +553,7 @@ private:
 	}
 
 private:
-	std::map<std::chrono::system_clock::time_point, std::list<std::shared_ptr<BaseTimer>>> timers_;
+	std::map<std::chrono::system_clock::time_point, std::list<TimerPtr>> timers_;
 	bool stopped_ = false;
 };
 
