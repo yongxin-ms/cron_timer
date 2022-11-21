@@ -424,6 +424,10 @@ class TimerMgr {
 
 public:
 	TimerMgr() {}
+	TimerMgr(FUNC_CALLBACK&& func){
+		std::thread subthread(func);
+		subthread.detach();
+	}
 	TimerMgr(const TimerMgr&) = delete;
 	const TimerMgr& operator=(const TimerMgr&) = delete;
 
