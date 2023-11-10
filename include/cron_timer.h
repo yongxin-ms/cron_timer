@@ -272,7 +272,7 @@ public:
 	void Cancel();
 
 protected:
-	virtual void CreateNextTriggerTime() = 0;
+	virtual void CreateTriggerTime(bool next) = 0;
 
 	void DoFunc();
 	std::chrono::system_clock::time_point GetTriggerTime() const { return m_triggerTime; }
@@ -288,19 +288,6 @@ protected:
 struct CronWheel {
 	CronWheel()
 		: cur_index(0) {}
-
-	// 返回值：是否有进位
-	bool init(int init_value) {
-		for (size_t i = cur_index; i < values.size(); ++i) {
-			if (values[i] >= init_value) {
-				cur_index = i;
-				return false;
-			}
-		}
-
-		cur_index = 0;
-		return true;
-	}
 
 	size_t cur_index;
 	std::vector<int> values;
@@ -333,19 +320,23 @@ public:
 		std::pair<int, bool> pairValue = std::make_pair(0, false);
 		for (int i = CronExpression::DT_YEAR; i >= 0; i--) {
 			pairValue = GetMinValid(i, init_values[i], pairValue.second);
-			init_values[i] = pairValue.first;
+			m_wheels[i].cur_index = pairValue.first;
 		}
 
+		/*
 		bool addup = false;
 		for (int i = 0; i < CronExpression::DT_MAX; i++) {
 			auto& wheel = m_wheels[i];
 			auto init_value = addup ? init_values[i] + 1 : init_values[i];
 			addup = wheel.init(init_value);
 		}
+		*/
 	}
 
-	virtual void CreateNextTriggerTime() {
-		Next(CronExpression::DT_SECOND);
+	virtual void CreateTriggerTime(bool next) {
+		if (next) {
+			Next(CronExpression::DT_SECOND);
+		}
 
 		tm next_tm;
 		memset(&next_tm, 0, sizeof(next_tm));
@@ -377,24 +368,24 @@ private:
 		}
 	}
 
-	// value, is changed
-	std::pair<int, bool> GetMinValid(int data_type, int value, bool changed) {
+	// index, is changed
+	std::pair<int, bool> GetMinValid(int data_type, int value, bool changed) const {
 		auto& wheel = m_wheels[data_type];
 		if (changed) {
-			return std::make_pair(wheel.values[0], true);
+			return std::make_pair(0, true);
 		}
 
 		for (int i = 0; i < wheel.values.size(); i++) {
 			if (wheel.values[i] < value) {
 				continue;
 			} else if (wheel.values[i] == value) {
-				return std::make_pair(value, false);
+				return std::make_pair(i, false);
 			} else {
-				return std::make_pair(wheel.values[i], true);
+				return std::make_pair(i, true);
 			}
 		}
 
-		return std::make_pair(wheel.values[0], true);
+		return std::make_pair(0, true);
 	}
 
 	int GetCurValue(int data_type) const {
@@ -414,7 +405,7 @@ public:
 		: BaseTimer(owner, std::move(func), count)
 		, m_milliSeconds(milliseconds) {}
 
-	virtual void CreateNextTriggerTime() { m_triggerTime += std::chrono::milliseconds(m_milliSeconds); }
+	virtual void CreateTriggerTime(bool next) { m_triggerTime += std::chrono::milliseconds(m_milliSeconds); }
 
 private:
 	const int m_milliSeconds;
@@ -459,7 +450,7 @@ public:
 		}
 
 		auto p = std::make_shared<CronTimer>(*this, std::move(wheels), std::move(func), count);
-		p->CreateNextTriggerTime();
+		p->CreateTriggerTime(false);
 		insert(p);
 		return p;
 	}
@@ -469,7 +460,7 @@ public:
 		assert(milliseconds > 0);
 		milliseconds = (std::max)(milliseconds, 1);
 		auto p = std::make_shared<LaterTimer>(*this, milliseconds, std::move(func), count);
-		p->CreateNextTriggerTime();
+		p->CreateTriggerTime(true);
 		insert(p);
 		return p;
 	}
@@ -542,7 +533,7 @@ void BaseTimer::Cancel() {
 
 void BaseTimer::DoFunc() {
 	m_func();
-	CreateNextTriggerTime();
+	CreateTriggerTime(true);
 
 	// 可能用户在定时器中取消了自己
 	if (!m_canceled) {
