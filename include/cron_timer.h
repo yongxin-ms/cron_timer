@@ -270,12 +270,11 @@ public:
 		, m_canceled(false) {}
 	virtual ~BaseTimer() {}
 	void Cancel();
-
-protected:
-	virtual void CreateTriggerTime(bool next) = 0;
-
-	void DoFunc();
 	std::chrono::system_clock::time_point GetTriggerTime() const { return m_triggerTime; }
+
+private:
+	virtual void CreateTriggerTime(bool next) = 0;
+	void DoFunc();
 
 protected:
 	TimerMgr& m_owner;
@@ -333,6 +332,7 @@ public:
 		*/
 	}
 
+private:
 	virtual void CreateTriggerTime(bool next) {
 		if (next) {
 			Next(CronExpression::DT_SECOND);
@@ -350,7 +350,6 @@ public:
 		m_triggerTime = std::chrono::system_clock::from_time_t(mktime(&next_tm));
 	}
 
-private:
 	// 前进到下一格
 	void Next(int data_type) {
 		if (data_type >= CronExpression::DT_MAX) {
@@ -405,6 +404,7 @@ public:
 		: BaseTimer(owner, std::move(func), count)
 		, m_milliSeconds(milliseconds) {}
 
+private:
 	virtual void CreateTriggerTime(bool next) { m_triggerTime += std::chrono::milliseconds(m_milliSeconds); }
 
 private:
