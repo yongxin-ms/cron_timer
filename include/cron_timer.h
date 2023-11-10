@@ -265,6 +265,7 @@ public:
 	BaseTimer(TimerMgr& owner, FUNC_CALLBACK&& func, int count)
 		: m_owner(owner)
 		, m_func(std::move(func))
+		, m_triggerTime(std::chrono::system_clock::now())
 		, m_countLeft(count)
 		, m_canceled(false) {}
 	virtual ~BaseTimer() {}
