@@ -330,6 +330,12 @@ public:
 		init_values.push_back(local_tm.tm_mon + 1);
 		init_values.push_back(local_tm.tm_year + 1900);
 
+		std::pair<int, bool> pairValue = std::make_pair(0, false);
+		for (int i = CronExpression::DT_YEAR; i >= 0; i--) {
+			pairValue = GetMinValid(i, init_values[i], pairValue.second);
+			init_values[i] = pairValue.first;
+		}
+
 		bool addup = false;
 		for (int i = 0; i < CronExpression::DT_MAX; i++) {
 			auto& wheel = m_wheels[i];
@@ -369,6 +375,26 @@ private:
 		} else {
 			++wheel.cur_index;
 		}
+	}
+
+	// value, is changed
+	std::pair<int, bool> GetMinValid(int data_type, int value, bool changed) {
+		auto& wheel = m_wheels[data_type];
+		if (changed) {
+			return std::make_pair(wheel.values[0], true);
+		}
+
+		for (int i = 0; i < wheel.values.size(); i++) {
+			if (wheel.values[i] < value) {
+				continue;
+			} else if (wheel.values[i] == value) {
+				return std::make_pair(value, false);
+			} else {
+				return std::make_pair(wheel.values[i], true);
+			}
+		}
+
+		return std::make_pair(wheel.values[0], true);
 	}
 
 	int GetCurValue(int data_type) const {
