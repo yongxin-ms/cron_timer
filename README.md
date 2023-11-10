@@ -14,6 +14,7 @@
 | ~~4~~ | ~~AddTimer的返回值应该由一个weak_ptr来接，当执行完毕之后其引用自动变为null_ptr~~ | ~~20210628, xinyong已完成~~ |
 | 5     | 支持在定时器处理函数中取消自己                               | 20210721, xinyong已完成     |
 | 6     | AddTimer的返回值应该由一个unique_ptr来接，由返回值控制其生命周期 |                             |
+| 7     | 修复未来的CronTimer无法正确触发的bug，感谢[RosenYin](https://github.com/RosenYin)发现bug | 20231111,xinyong已修正      |
 |       |                                                              |                             |
 
 
