@@ -138,7 +138,7 @@ public:
 	};
 
 	// 获得数值枚举
-	static bool GetValues(const std::string& input, DATA_TYPE data_type, std::set<int>& values) {
+	static bool GetValues(const std::string& input, DATA_TYPE data_type, std::vector<int>& values) {
 
 		//
 		// 注意：枚举之前是','，为了能在csv中使用改成了';'
@@ -152,7 +152,7 @@ public:
 		if (input == "*") {
 			auto pair_range = GetRangeFromType(data_type);
 			for (auto i = pair_range.first; i <= pair_range.second; ++i) {
-				values.insert(i);
+				values.push_back(i);
 			}
 		} else if (input.find_first_of(CRON_SEPERATOR_ENUM) != std::string::npos) {
 			// 枚举
@@ -163,7 +163,7 @@ public:
 				if (value < pair_range.first || value > pair_range.second) {
 					return false;
 				}
-				values.insert(value);
+				values.push_back(value);
 			}
 		} else if (input.find_first_of(CRON_SEPERATOR_RANGE) != std::string::npos) {
 			// 范围
@@ -181,7 +181,7 @@ public:
 			}
 
 			for (int i = from; i <= to; i++) {
-				values.insert(i);
+				values.push_back(i);
 			}
 		} else if (input.find_first_of(CRON_SEPERATOR_INTERVAL) != std::string::npos) {
 			// 间隔
@@ -199,7 +199,7 @@ public:
 			}
 
 			for (int i = from; i <= pair_range.second; i += interval) {
-				values.insert(i);
+				values.push_back(i);
 			}
 		} else {
 			// 具体数值
@@ -209,7 +209,7 @@ public:
 				return false;
 			}
 
-			values.insert(value);
+			values.push_back(value);
 		}
 
 		assert(values.size() > 0);
@@ -272,11 +272,10 @@ public:
 	void Cancel();
 
 protected:
-	virtual std::chrono::system_clock::time_point CreateNextTriggerTime() const = 0;
+	virtual void CreateNextTriggerTime() = 0;
 
 	void DoFunc();
 	std::chrono::system_clock::time_point GetTriggerTime() const { return m_triggerTime; }
-	void SetTriggerTime(std::chrono::system_clock::time_point t) { m_triggerTime = t; }
 
 protected:
 	TimerMgr& m_owner;
@@ -286,21 +285,99 @@ protected:
 	bool m_canceled;
 };
 
+struct CronWheel {
+	CronWheel()
+		: cur_index(0) {}
+
+	// 返回值：是否有进位
+	bool init(int init_value) {
+		for (size_t i = cur_index; i < values.size(); ++i) {
+			if (values[i] >= init_value) {
+				cur_index = i;
+				return false;
+			}
+		}
+
+		cur_index = 0;
+		return true;
+	}
+
+	size_t cur_index;
+	std::vector<int> values;
+};
+
 class CronTimer : public BaseTimer {
 	friend class TimerMgr;
 
 public:
-	CronTimer(TimerMgr& owner, const std::vector<std::set<int>>& cronConfig, FUNC_CALLBACK&& func, int count)
+	CronTimer(TimerMgr& owner, std::vector<CronWheel>&& wheels, FUNC_CALLBACK&& func, int count)
 		: BaseTimer(owner, std::move(func), count)
-		, m_cronConfig(cronConfig) {}
+		, m_wheels(std::move(wheels)) {
+		tm local_tm;
+		time_t time_now = time(nullptr);
 
-	virtual std::chrono::system_clock::time_point CreateNextTriggerTime() const {
-		// to do
-		return m_triggerTime;
+#ifdef _WIN32
+		localtime_s(&local_tm, &time_now);
+#else
+		localtime_r(&time_now, &local_tm);
+#endif // _WIN32
+
+		std::vector<int> init_values;
+		init_values.push_back(local_tm.tm_sec);
+		init_values.push_back(local_tm.tm_min);
+		init_values.push_back(local_tm.tm_hour);
+		init_values.push_back(local_tm.tm_mday);
+		init_values.push_back(local_tm.tm_mon + 1);
+		init_values.push_back(local_tm.tm_year + 1900);
+
+		bool addup = false;
+		for (int i = 0; i < CronExpression::DT_MAX; i++) {
+			auto& wheel = m_wheels[i];
+			auto init_value = addup ? init_values[i] + 1 : init_values[i];
+			addup = wheel.init(init_value);
+		}
+	}
+
+	virtual void CreateNextTriggerTime() {
+		Next(CronExpression::DT_SECOND);
+
+		tm next_tm;
+		memset(&next_tm, 0, sizeof(next_tm));
+		next_tm.tm_sec = GetCurValue(CronExpression::DT_SECOND);
+		next_tm.tm_min = GetCurValue(CronExpression::DT_MINUTE);
+		next_tm.tm_hour = GetCurValue(CronExpression::DT_HOUR);
+		next_tm.tm_mday = GetCurValue(CronExpression::DT_DAY_OF_MONTH);
+		next_tm.tm_mon = GetCurValue(CronExpression::DT_MONTH) - 1;
+		next_tm.tm_year = GetCurValue(CronExpression::DT_YEAR) - 1900;
+
+		m_triggerTime = std::chrono::system_clock::from_time_t(mktime(&next_tm));
 	}
 
 private:
-	const std::vector<std::set<int>> m_cronConfig;
+	// 前进到下一格
+	void Next(int data_type) {
+		if (data_type >= CronExpression::DT_MAX) {
+			// 溢出了表明此定时器已经失效，不应该再被执行
+			m_canceled = true;
+			return;
+		}
+
+		auto& wheel = m_wheels[data_type];
+		if (wheel.cur_index == wheel.values.size() - 1) {
+			wheel.cur_index = 0;
+			Next(data_type + 1);
+		} else {
+			++wheel.cur_index;
+		}
+	}
+
+	int GetCurValue(int data_type) const {
+		const auto& wheel = m_wheels[data_type];
+		return wheel.values[wheel.cur_index];
+	}
+
+private:
+	std::vector<CronWheel> m_wheels;
 };
 
 class LaterTimer : public BaseTimer {
@@ -311,10 +388,7 @@ public:
 		: BaseTimer(owner, std::move(func), count)
 		, m_milliSeconds(milliseconds) {}
 
-	virtual std::chrono::system_clock::time_point CreateNextTriggerTime() const {
-		// to do
-		return m_triggerTime + std::chrono::milliseconds(m_milliSeconds);
-	}
+	virtual void CreateNextTriggerTime() { m_triggerTime += std::chrono::milliseconds(m_milliSeconds); }
 
 private:
 	const int m_milliSeconds;
@@ -345,22 +419,21 @@ public:
 			return nullptr;
 		}
 
-		std::vector<std::set<int>> cronConfig;
+		std::vector<CronWheel> wheels;
 		for (int i = 0; i < CronExpression::DT_MAX; i++) {
 			const auto& expression = v[i];
 			CronExpression::DATA_TYPE data_type = CronExpression::DATA_TYPE(i);
-			std::set<int> s;
-			if (!CronExpression::GetValues(expression, data_type, s)) {
+			CronWheel wheel;
+			if (!CronExpression::GetValues(expression, data_type, wheel.values)) {
 				assert(false);
 				return nullptr;
 			}
 
-			cronConfig.emplace_back(s);
+			wheels.emplace_back(wheel);
 		}
 
-		auto p = std::make_shared<CronTimer>(*this, cronConfig, std::move(func), count);
-		auto nextTriggerTime = p->CreateNextTriggerTime();
-		p->SetTriggerTime(nextTriggerTime);
+		auto p = std::make_shared<CronTimer>(*this, std::move(wheels), std::move(func), count);
+		p->CreateNextTriggerTime();
 		insert(p);
 		return p;
 	}
@@ -370,8 +443,7 @@ public:
 		assert(milliseconds > 0);
 		milliseconds = (std::max)(milliseconds, 1);
 		auto p = std::make_shared<LaterTimer>(*this, milliseconds, std::move(func), count);
-		auto nextTriggerTime = p->CreateNextTriggerTime();
-		p->SetTriggerTime(nextTriggerTime);
+		p->CreateNextTriggerTime();
 		insert(p);
 		return p;
 	}
@@ -444,6 +516,7 @@ void BaseTimer::Cancel() {
 
 void BaseTimer::DoFunc() {
 	m_func();
+	CreateNextTriggerTime();
 
 	// 可能用户在定时器中取消了自己
 	if (!m_canceled) {
@@ -453,8 +526,6 @@ void BaseTimer::DoFunc() {
 			}
 			auto self = shared_from_this();
 
-			auto nextTriggerTime = CreateNextTriggerTime();
-			SetTriggerTime(nextTriggerTime);
 			m_owner.insert(self);
 		}
 	}
