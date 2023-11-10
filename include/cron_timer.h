@@ -1,6 +1,6 @@
 ﻿#pragma once
 #include <string>
-#include <list>
+#include <set>
 #include <vector>
 #include <map>
 #include <memory>
@@ -155,7 +155,7 @@ public:
 				values.push_back(i);
 			}
 		} else if (input.find_first_of(CRON_SEPERATOR_ENUM) != std::string::npos) {
-			//枚举
+			// 枚举
 			std::vector<int> v;
 			Text::SplitInt(v, input, CRON_SEPERATOR_ENUM);
 			std::pair<int, int> pair_range = GetRangeFromType(data_type);
@@ -166,7 +166,7 @@ public:
 				values.push_back(value);
 			}
 		} else if (input.find_first_of(CRON_SEPERATOR_RANGE) != std::string::npos) {
-			//范围
+			// 范围
 			std::vector<int> v;
 			Text::SplitInt(v, input, CRON_SEPERATOR_RANGE);
 			if (v.size() != 2) {
@@ -184,7 +184,7 @@ public:
 				values.push_back(i);
 			}
 		} else if (input.find_first_of(CRON_SEPERATOR_INTERVAL) != std::string::npos) {
-			//间隔
+			// 间隔
 			std::vector<int> v;
 			Text::SplitInt(v, input, CRON_SEPERATOR_INTERVAL);
 			if (v.size() != 2) {
@@ -202,7 +202,7 @@ public:
 				values.push_back(i);
 			}
 		} else {
-			//具体数值
+			// 具体数值
 			std::pair<int, int> pair_range = GetRangeFromType(data_type);
 			int value = atoi(input.data());
 			if (value < pair_range.first || value > pair_range.second) {
@@ -253,27 +253,6 @@ private:
 	}
 };
 
-struct CronWheel {
-	CronWheel()
-		: cur_index(0) {}
-
-	//返回值：是否有进位
-	bool init(int init_value) {
-		for (size_t i = cur_index; i < values.size(); ++i) {
-			if (values[i] >= init_value) {
-				cur_index = i;
-				return false;
-			}
-		}
-
-		cur_index = 0;
-		return true;
-	}
-
-	size_t cur_index;
-	std::vector<int> values;
-};
-
 class TimerMgr;
 class BaseTimer;
 using FUNC_CALLBACK = std::function<void()>;
@@ -283,28 +262,35 @@ class BaseTimer : public std::enable_shared_from_this<BaseTimer> {
 	friend class TimerMgr;
 
 public:
-	BaseTimer(TimerMgr& owner, FUNC_CALLBACK&& func)
-		: owner_(owner)
-		, func_(std::move(func))
-		, is_in_list_(false) {}
+	BaseTimer(TimerMgr& owner, FUNC_CALLBACK&& func, int count)
+		: m_owner(owner)
+		, m_func(std::move(func))
+		, m_triggerTime(std::chrono::system_clock::now())
+		, m_countLeft(count)
+		, m_canceled(false) {}
 	virtual ~BaseTimer() {}
-
-	inline void Cancel();
-
-protected:
-	std::list<TimerPtr>::iterator& GetIt() { return it_; }
-	void SetIt(const std::list<TimerPtr>::iterator& it) { it_ = it; }
-	bool GetIsInList() const { return is_in_list_; }
-	void SetIsInList(bool b) { is_in_list_ = b; }
-
-	virtual void DoFunc() = 0;
-	virtual std::chrono::system_clock::time_point GetCurTime() const = 0;
+	void Cancel();
 
 protected:
-	TimerMgr& owner_;
-	FUNC_CALLBACK func_;
-	std::list<TimerPtr>::iterator it_;
-	bool is_in_list_;
+	virtual void CreateTriggerTime(bool next) = 0;
+
+	void DoFunc();
+	std::chrono::system_clock::time_point GetTriggerTime() const { return m_triggerTime; }
+
+protected:
+	TimerMgr& m_owner;
+	FUNC_CALLBACK m_func;
+	std::chrono::system_clock::time_point m_triggerTime;
+	int m_countLeft;
+	bool m_canceled;
+};
+
+struct CronWheel {
+	CronWheel()
+		: cur_index(0) {}
+
+	size_t cur_index;
+	std::vector<int> values;
 };
 
 class CronTimer : public BaseTimer {
@@ -312,10 +298,8 @@ class CronTimer : public BaseTimer {
 
 public:
 	CronTimer(TimerMgr& owner, std::vector<CronWheel>&& wheels, FUNC_CALLBACK&& func, int count)
-		: BaseTimer(owner, std::move(func))
-		, wheels_(std::move(wheels))
-		, over_flowed_(false)
-		, count_left_(count) {
+		: BaseTimer(owner, std::move(func), count)
+		, m_wheels(std::move(wheels)) {
 		tm local_tm;
 		time_t time_now = time(nullptr);
 
@@ -333,16 +317,27 @@ public:
 		init_values.push_back(local_tm.tm_mon + 1);
 		init_values.push_back(local_tm.tm_year + 1900);
 
+		std::pair<int, bool> pairValue = std::make_pair(0, false);
+		for (int i = CronExpression::DT_YEAR; i >= 0; i--) {
+			pairValue = GetMinValid(i, init_values[i], pairValue.second);
+			m_wheels[i].cur_index = pairValue.first;
+		}
+
+		/*
 		bool addup = false;
 		for (int i = 0; i < CronExpression::DT_MAX; i++) {
-			auto& wheel = wheels_[i];
+			auto& wheel = m_wheels[i];
 			auto init_value = addup ? init_values[i] + 1 : init_values[i];
 			addup = wheel.init(init_value);
 		}
+		*/
 	}
 
-	inline void DoFunc() override;
-	std::chrono::system_clock::time_point GetCurTime() const override {
+	virtual void CreateTriggerTime(bool next) {
+		if (next) {
+			Next(CronExpression::DT_SECOND);
+		}
+
 		tm next_tm;
 		memset(&next_tm, 0, sizeof(next_tm));
 		next_tm.tm_sec = GetCurValue(CronExpression::DT_SECOND);
@@ -352,7 +347,7 @@ public:
 		next_tm.tm_mon = GetCurValue(CronExpression::DT_MONTH) - 1;
 		next_tm.tm_year = GetCurValue(CronExpression::DT_YEAR) - 1900;
 
-		return std::chrono::system_clock::from_time_t(mktime(&next_tm));
+		m_triggerTime = std::chrono::system_clock::from_time_t(mktime(&next_tm));
 	}
 
 private:
@@ -360,11 +355,11 @@ private:
 	void Next(int data_type) {
 		if (data_type >= CronExpression::DT_MAX) {
 			// 溢出了表明此定时器已经失效，不应该再被执行
-			over_flowed_ = true;
+			m_canceled = true;
 			return;
 		}
 
-		auto& wheel = wheels_[data_type];
+		auto& wheel = m_wheels[data_type];
 		if (wheel.cur_index == wheel.values.size() - 1) {
 			wheel.cur_index = 0;
 			Next(data_type + 1);
@@ -373,15 +368,33 @@ private:
 		}
 	}
 
+	// index, is changed
+	std::pair<int, bool> GetMinValid(int data_type, int value, bool changed) const {
+		auto& wheel = m_wheels[data_type];
+		if (changed) {
+			return std::make_pair(0, true);
+		}
+
+		for (int i = 0; i < wheel.values.size(); i++) {
+			if (wheel.values[i] < value) {
+				continue;
+			} else if (wheel.values[i] == value) {
+				return std::make_pair(i, false);
+			} else {
+				return std::make_pair(i, true);
+			}
+		}
+
+		return std::make_pair(0, true);
+	}
+
 	int GetCurValue(int data_type) const {
-		const auto& wheel = wheels_[data_type];
+		const auto& wheel = m_wheels[data_type];
 		return wheel.values[wheel.cur_index];
 	}
 
 private:
-	std::vector<CronWheel> wheels_;
-	bool over_flowed_;
-	int count_left_;
+	std::vector<CronWheel> m_wheels;
 };
 
 class LaterTimer : public BaseTimer {
@@ -389,32 +402,13 @@ class LaterTimer : public BaseTimer {
 
 public:
 	LaterTimer(TimerMgr& owner, int milliseconds, FUNC_CALLBACK&& func, int count)
-		: BaseTimer(owner, std::move(func))
-		, mill_seconds_(milliseconds)
-		, count_left_(count) {
-		cur_time_ = std::chrono::system_clock::now();
-		Next();
-	}
+		: BaseTimer(owner, std::move(func), count)
+		, m_milliSeconds(milliseconds) {}
 
-	inline void DoFunc() override;
-	std::chrono::system_clock::time_point GetCurTime() const override { return cur_time_; }
+	virtual void CreateTriggerTime(bool next) { m_triggerTime += std::chrono::milliseconds(m_milliSeconds); }
 
 private:
-	//前进到下一格
-	void Next() {
-		auto time_now = std::chrono::system_clock::now();
-		while (true) {
-			cur_time_ += std::chrono::milliseconds(mill_seconds_);
-			if (cur_time_ > time_now) {
-				break;
-			}
-		}
-	}
-
-private:
-	const int mill_seconds_;
-	std::chrono::system_clock::time_point cur_time_;
-	int count_left_;
+	const int m_milliSeconds;
 };
 
 class TimerMgr {
@@ -427,22 +421,14 @@ public:
 	TimerMgr(const TimerMgr&) = delete;
 	const TimerMgr& operator=(const TimerMgr&) = delete;
 
-	void Stop() {
-		timers_.clear();
-		stopped_ = true;
-	 }
+	void Stop() { m_timers.clear(); }
 
 	enum {
-		 RUN_FOREVER = 0,
-	 };
+		RUN_FOREVER = 0,
+	};
 
 	// 新增一个Cron表达式的定时器，缺省永远执行
-	TimerPtr AddTimer(
-		const std::string& timer_string, FUNC_CALLBACK&& func, int count = RUN_FOREVER) {
-		if (stopped_) {
-			return nullptr;
-		 }
-
+	TimerPtr AddTimer(const std::string& timer_string, FUNC_CALLBACK&& func, int count = RUN_FOREVER) {
 		std::vector<std::string> v;
 		Text::SplitStr(v, timer_string, ' ');
 		if (v.size() != CronExpression::DT_MAX) {
@@ -464,26 +450,24 @@ public:
 		}
 
 		auto p = std::make_shared<CronTimer>(*this, std::move(wheels), std::move(func), count);
+		p->CreateTriggerTime(false);
 		insert(p);
 		return p;
 	}
 
 	// 新增一个延时执行的定时器，缺省运行一次
 	TimerPtr AddDelayTimer(int milliseconds, FUNC_CALLBACK&& func, int count = 1) {
-		if (stopped_) {
-			return nullptr;
-		}
-
 		assert(milliseconds > 0);
 		milliseconds = (std::max)(milliseconds, 1);
 		auto p = std::make_shared<LaterTimer>(*this, milliseconds, std::move(func), count);
+		p->CreateTriggerTime(true);
 		insert(p);
 		return p;
 	}
 
 	std::chrono::system_clock::time_point GetNearestTime() {
-		auto it = timers_.begin();
-		if (it == timers_.end()) {
+		auto it = m_timers.begin();
+		if (it == m_timers.end()) {
 			return (std::chrono::system_clock::time_point::max)();
 		} else {
 			return it->first;
@@ -494,20 +478,19 @@ public:
 		auto time_now = std::chrono::system_clock::now();
 		size_t count = 0;
 
-		for (auto it = timers_.begin(); it != timers_.end();) {
+		for (auto it = m_timers.begin(); it != m_timers.end();) {
 			auto expire_time = it->first;
-			auto& timer_list = it->second;
 			if (expire_time > time_now) {
 				break;
 			}
 
-			while (!timer_list.empty()) {
-				auto p = *timer_list.begin();
+			auto timer_set = it->second;
+			it = m_timers.erase(it);
+
+			for (auto p : timer_set) {
 				p->DoFunc();
 				++count;
 			}
-
-			it = timers_.erase(it);
 		}
 
 		return count;
@@ -515,83 +498,52 @@ public:
 
 private:
 	void insert(const TimerPtr& p) {
-		assert(!p->GetIsInList());
-
-		auto t = p->GetCurTime();
-		auto it = timers_.find(t);
-		if (it == timers_.end()) {
-			std::list<TimerPtr> l;
-			timers_.insert(std::make_pair(t, l));
-			it = timers_.find(t);
+		auto t = p->GetTriggerTime();
+		auto it = m_timers.find(t);
+		if (it == m_timers.end()) {
+			std::set<TimerPtr> s;
+			s.insert(p);
+			m_timers[t] = s;
+		} else {
+			std::set<TimerPtr>& s = it->second;
+			s.insert(p);
 		}
-
-		auto& l = it->second;
-		p->SetIt(l.insert(l.end(), p));
-		p->SetIsInList(true);
 	}
 
-	bool remove(const TimerPtr& p) {
-		assert(p->GetIsInList());
-
-		auto t = p->GetCurTime();
-		auto it = timers_.find(t);
-		if (it == timers_.end()) {
-			assert(false);
-			return false;
+	void remove(const TimerPtr& p) {
+		auto t = p->GetTriggerTime();
+		auto it = m_timers.find(t);
+		if (it == m_timers.end()) {
+			return;
 		}
 
-		auto& l = it->second;
-		if (p->GetIt() == l.end()) {
-			assert(false);
-			return false;
-		}
-
-		l.erase(p->GetIt());
-		p->SetIt(l.end());
-		p->SetIsInList(false);
-		return true;
+		std::set<TimerPtr>& s = it->second;
+		s.erase(p);
 	}
 
 private:
-	std::map<std::chrono::system_clock::time_point, std::list<TimerPtr>> timers_;
-	bool stopped_ = false;
+	std::map<std::chrono::system_clock::time_point, std::set<TimerPtr>> m_timers;
 };
 
 void BaseTimer::Cancel() {
-	if (!GetIsInList()) {
-		return;
-	}
-
 	auto self = shared_from_this();
-	owner_.remove(self);
+	m_owner.remove(self);
+	m_canceled = true;
 }
 
-void CronTimer::DoFunc() {
-	func_();
+void BaseTimer::DoFunc() {
+	m_func();
+	CreateTriggerTime(true);
 
 	// 可能用户在定时器中取消了自己
-	if (GetIsInList()) {
-		auto self = shared_from_this();
-		owner_.remove(self);
+	if (!m_canceled) {
+		if (m_countLeft == TimerMgr::RUN_FOREVER || m_countLeft > 1) {
+			if (m_countLeft > 1) {
+				m_countLeft--;
+			}
+			auto self = shared_from_this();
 
-		Next(CronExpression::DT_SECOND);
-		if ((count_left_ <= TimerMgr::RUN_FOREVER || --count_left_ > 0) && !over_flowed_) {
-			owner_.insert(self);
-		}
-	}
-}
-
-void LaterTimer::DoFunc() {
-	func_();
-	
-	// 可能用户在定时器中取消了自己
-	if (GetIsInList()) {
-		auto self = shared_from_this();
-		owner_.remove(self);
-
-		if (count_left_ <= TimerMgr::RUN_FOREVER || --count_left_ > 0) {
-			Next();
-			owner_.insert(self);
+			m_owner.insert(self);
 		}
 	}
 }
