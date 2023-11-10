@@ -268,13 +268,12 @@ public:
 		, m_countLeft(count)
 		, m_canceled(false) {}
 	virtual ~BaseTimer() {}
-	void Cancel() { m_canceled = true; }
+	void Cancel();
 
 protected:
 	virtual std::chrono::system_clock::time_point CreateNextTriggerTime() const = 0;
 
 	void DoFunc();
-
 	std::chrono::system_clock::time_point GetTriggerTime() const { return m_triggerTime; }
 	void SetTriggerTime(std::chrono::system_clock::time_point t) { m_triggerTime = t; }
 
@@ -421,9 +420,26 @@ private:
 		}
 	}
 
+	void remove(const TimerPtr& p) {
+		auto t = p->GetTriggerTime();
+		auto it = m_timers.find(t);
+		if (it == m_timers.end()) {
+			return;
+		}
+
+		std::set<TimerPtr>& s = it->second;
+		s.erase(p);
+	}
+
 private:
 	std::map<std::chrono::system_clock::time_point, std::set<TimerPtr>> m_timers;
 };
+
+void BaseTimer::Cancel() {
+	auto self = shared_from_this();
+	m_owner.remove(self);
+	m_canceled = true;
+}
 
 void BaseTimer::DoFunc() {
 	m_func();
