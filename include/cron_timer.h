@@ -13,36 +13,29 @@
 	cron_timer::TimerMgr mgr;
 
 	mgr.AddTimer("* * * * * *", [](void) {
-		// 每秒钟都会执行一次
 		Log("1 second cron timer hit");
 	});
 
 	mgr.AddTimer("0/3 * * * * *", [](void) {
-		// 从0秒开始，每3秒钟执行一次
 		Log("3 second cron timer hit");
 	});
 
 	mgr.AddTimer("0 * * * * *", [](void) {
-		// 1分钟执行一次（每次都在0秒的时候执行）的定时器
 		Log("1 minute cron timer hit");
 	});
 
 	mgr.AddTimer("15;30;33 * * * * *", [](void) {
-		// 指定时间（15秒、30秒和33秒）点都会执行一次
 		Log("cron timer hit at 15s or 30s or 33s");
 	});
 
 	mgr.AddTimer("40-50 * * * * *", [](void) {
-		// 指定时间段（40到50内的每一秒）执行的定时器
 		Log("cron timer hit between 40s to 50s");
 	});
 
 	std::weak_ptr<cron_timer::BaseTimer> timer = mgr.AddDelayTimer(3000, [](void) {
-		// 3秒钟之后执行
 		Log("3 second delay timer hit");
 	});
 
-	// 可以在执行之前取消
 	if (auto ptr = timer.lock(); ptr != nullptr) {
 		ptr->Cancel();
 	}
@@ -50,7 +43,6 @@
 	mgr.AddDelayTimer(
 		10000,
 		[](void) {
-			// 每10秒钟执行一次，总共执行3次
 			Log("10 second delay timer hit");
 		},
 		3);
@@ -67,7 +59,7 @@
 namespace cron_timer {
 class Text {
 public:
-	// 主要用来切分使用空格分隔的字符串，连续的空格算作一个分隔符
+	// Used to split strings separated by spaces, consecutive spaces are counted as a separator
 	static size_t SplitStr(std::vector<std::string>& os, const std::string& is, char c) {
 		os.clear();
 		auto start = is.find_first_not_of(c, 0);
@@ -103,7 +95,7 @@ public:
 		return result;
 	}
 
-	// 主要用来切分使用逗号分隔的字符串，连续的逗号算作多个分隔符
+	// Used to segment strings separated by commas, consecutive commas are counted as multiple delimiters
 	static size_t ParseParam(std::vector<std::string>& result, const std::string& is, char c) {
 		result.clear();
 		size_t start = 0;
@@ -137,12 +129,10 @@ public:
 		DT_MAX,
 	};
 
-	// 获得数值枚举
 	static bool GetValues(const std::string& input, DATA_TYPE data_type, std::vector<int>& values) {
 
 		//
-		// 注意：枚举之前是','，为了能在csv中使用改成了';'
-		// 20181226 xinyong
+		// attention: enum seperater is ';' not ',' for using it in csv
 		//
 
 		static const char CRON_SEPERATOR_ENUM = ';';
@@ -155,7 +145,7 @@ public:
 				values.push_back(i);
 			}
 		} else if (input.find_first_of(CRON_SEPERATOR_ENUM) != std::string::npos) {
-			// 枚举
+			// enum
 			std::vector<int> v;
 			Text::SplitInt(v, input, CRON_SEPERATOR_ENUM);
 			std::pair<int, int> pair_range = GetRangeFromType(data_type);
@@ -166,7 +156,7 @@ public:
 				values.push_back(value);
 			}
 		} else if (input.find_first_of(CRON_SEPERATOR_RANGE) != std::string::npos) {
-			// 范围
+			// range
 			std::vector<int> v;
 			Text::SplitInt(v, input, CRON_SEPERATOR_RANGE);
 			if (v.size() != 2) {
@@ -184,7 +174,7 @@ public:
 				values.push_back(i);
 			}
 		} else if (input.find_first_of(CRON_SEPERATOR_INTERVAL) != std::string::npos) {
-			// 间隔
+			// interval
 			std::vector<int> v;
 			Text::SplitInt(v, input, CRON_SEPERATOR_INTERVAL);
 			if (v.size() != 2) {
@@ -202,7 +192,7 @@ public:
 				values.push_back(i);
 			}
 		} else {
-			// 具体数值
+			// specific value
 			std::pair<int, int> pair_range = GetRangeFromType(data_type);
 			int value = atoi(input.data());
 			if (value < pair_range.first || value > pair_range.second) {
@@ -217,7 +207,6 @@ public:
 	}
 
 private:
-	// 获得范围
 	static std::pair<int, int> GetRangeFromType(DATA_TYPE data_type) {
 		int from = 0;
 		int to = 0;
@@ -270,6 +259,8 @@ public:
 		, m_canceled(false) {}
 	virtual ~BaseTimer() {}
 	void Cancel();
+
+	// trigger time of the timer
 	std::chrono::system_clock::time_point GetTriggerTime() const { return m_triggerTime; }
 
 private:
@@ -321,15 +312,6 @@ public:
 			pairValue = GetMinValid(i, init_values[i], pairValue.second);
 			m_wheels[i].cur_index = pairValue.first;
 		}
-
-		/*
-		bool addup = false;
-		for (int i = 0; i < CronExpression::DT_MAX; i++) {
-			auto& wheel = m_wheels[i];
-			auto init_value = addup ? init_values[i] + 1 : init_values[i];
-			addup = wheel.init(init_value);
-		}
-		*/
 	}
 
 private:
@@ -350,10 +332,10 @@ private:
 		m_triggerTime = std::chrono::system_clock::from_time_t(mktime(&next_tm));
 	}
 
-	// 前进到下一格
+	// move to the next trigger time
 	void Next(int data_type) {
 		if (data_type >= CronExpression::DT_MAX) {
-			// 溢出了表明此定时器已经失效，不应该再被执行
+			// overflowed, this timer is invalid, should be removed
 			m_canceled = true;
 			return;
 		}
@@ -367,7 +349,7 @@ private:
 		}
 	}
 
-	// index, is changed
+	// return index, is changed
 	std::pair<int, bool> GetMinValid(int data_type, int value, bool changed) const {
 		auto& wheel = m_wheels[data_type];
 		if (changed) {
@@ -427,7 +409,6 @@ public:
 		RUN_FOREVER = 0,
 	};
 
-	// 新增一个Cron表达式的定时器，缺省永远执行
 	TimerPtr AddTimer(const std::string& timer_string, FUNC_CALLBACK&& func, int count = RUN_FOREVER) {
 		std::vector<std::string> v;
 		Text::SplitStr(v, timer_string, ' ');
@@ -455,7 +436,6 @@ public:
 		return p;
 	}
 
-	// 新增一个延时执行的定时器，缺省运行一次
 	TimerPtr AddDelayTimer(int milliseconds, FUNC_CALLBACK&& func, int count = 1) {
 		assert(milliseconds > 0);
 		milliseconds = (std::max)(milliseconds, 1);
@@ -484,6 +464,7 @@ public:
 				break;
 			}
 
+			// attention: this is a copy, not a reference
 			auto timer_set = it->second;
 			it = m_timers.erase(it);
 
@@ -535,14 +516,14 @@ void BaseTimer::DoFunc() {
 	m_func();
 	CreateTriggerTime(true);
 
-	// 可能用户在定时器中取消了自己
+	// the timer can be cancelled in m_func()
 	if (!m_canceled) {
 		if (m_countLeft == TimerMgr::RUN_FOREVER || m_countLeft > 1) {
 			if (m_countLeft > 1) {
 				m_countLeft--;
 			}
-			auto self = shared_from_this();
 
+			auto self = shared_from_this();
 			m_owner.insert(self);
 		}
 	}

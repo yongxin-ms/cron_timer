@@ -32,8 +32,7 @@ BOOL WINAPI ConsoleHandler(DWORD CtrlType) {
 	return TRUE;
 }
 #else
-void signal_hander(int signo) //自定义一个函数处理信号
-{
+void signal_hander(int signo) {
 	printf("catch a signal:%d\n:", signo);
 	_shutDown = true;
 }
@@ -41,7 +40,7 @@ void signal_hander(int signo) //自定义一个函数处理信号
 
 std::string FormatDateTime(const std::chrono::system_clock::time_point& time) {
 	uint64_t micro = std::chrono::duration_cast<std::chrono::microseconds>(time.time_since_epoch()).count() -
-					std::chrono::duration_cast<std::chrono::seconds>(time.time_since_epoch()).count() * 1000000;
+					 std::chrono::duration_cast<std::chrono::seconds>(time.time_since_epoch()).count() * 1000000;
 	char _time[64] = {0};
 	time_t tt = std::chrono::system_clock::to_time_t(time);
 	struct tm local_time;
@@ -93,36 +92,36 @@ void TestCronTimerInMainThread() {
 	cron_timer::TimerMgr mgr;
 
 	mgr.AddTimer("* * * * * *", [](void) {
-		// 每秒钟都会执行一次
+		// every second
 		Log("1 second cron timer hit");
 	});
 
 	mgr.AddTimer("0/3 * * * * *", [](void) {
-		// 从0秒开始，每3秒钟执行一次
+		// every 3 seconds
 		Log("3 second cron timer hit");
 	});
 
 	mgr.AddTimer("0 * * * * *", [](void) {
-		// 1分钟执行一次（每次都在0秒的时候执行）的定时器
+		// every minute
 		Log("1 minute cron timer hit");
 	});
 
 	mgr.AddTimer("15;30;33 * * * * *", [](void) {
-		// 指定时间（15秒、30秒和33秒）点都会执行一次
+		// specific second
 		Log("cron timer hit at 15s or 30s or 33s");
 	});
 
 	mgr.AddTimer("40-50 * * * * *", [](void) {
-		// 指定时间段（40到50内的每一秒）执行的定时器
+		// seconds interval
 		Log("cron timer hit between 40s to 50s");
 	});
 
 	std::weak_ptr<cron_timer::BaseTimer> timer = mgr.AddDelayTimer(3000, [](void) {
-		// 3秒钟之后执行
+		// after 3 seconds
 		Log("3 second delay timer hit");
 	});
 
-	// 可以在执行之前取消
+	// can be cancelled
 	if (auto ptr = timer.lock(); ptr != nullptr) {
 		ptr->Cancel();
 	}
@@ -130,7 +129,7 @@ void TestCronTimerInMainThread() {
 	mgr.AddDelayTimer(
 		10000,
 		[](void) {
-			// 每10秒钟执行一次，总共执行3次
+			// every 10 seconds for 3 times
 			Log("10 second delay timer hit");
 		},
 		3);
