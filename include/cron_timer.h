@@ -356,7 +356,7 @@ private:
 			return std::make_pair(0, true);
 		}
 
-		for (int i = 0; i < wheel.values.size(); i++) {
+		for (size_t i = 0; i < wheel.values.size(); i++) {
 			if (wheel.values[i] < value) {
 				continue;
 			} else if (wheel.values[i] == value) {
