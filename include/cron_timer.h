@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <string>
 #include <set>
 #include <vector>
@@ -258,14 +258,14 @@ public:
 		, m_countLeft(count)
 		, m_canceled(false) {}
 	virtual ~BaseTimer() {}
-	void Cancel();
+	inline void Cancel();
 
 	// trigger time of the timer
 	std::chrono::system_clock::time_point GetTriggerTime() const { return m_triggerTime; }
 
 private:
 	virtual void CreateTriggerTime(bool next) = 0;
-	void DoFunc();
+	inline void DoFunc();
 
 protected:
 	TimerMgr& m_owner;
@@ -307,7 +307,7 @@ public:
 		init_values.push_back(local_tm.tm_mon + 1);
 		init_values.push_back(local_tm.tm_year + 1900);
 
-		std::pair<int, bool> pairValue = std::make_pair(0, false);
+		std::pair<size_t, bool> pairValue = std::make_pair(0, false);
 		for (int i = CronExpression::DT_YEAR; i >= 0; i--) {
 			pairValue = GetMinValid(i, init_values[i], pairValue.second);
 			m_wheels[i].cur_index = pairValue.first;
@@ -350,7 +350,7 @@ private:
 	}
 
 	// return index, is changed
-	std::pair<int, bool> GetMinValid(int data_type, int value, bool changed) const {
+	std::pair<size_t, bool> GetMinValid(int data_type, int value, bool changed) const {
 		auto& wheel = m_wheels[data_type];
 		if (changed) {
 			return std::make_pair(0, true);
