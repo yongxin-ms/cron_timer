@@ -149,3 +149,5 @@
 
 
 **如果您觉得不错，感谢Star，如果您觉得有问题，欢迎提issue**
+
+[![Star History Chart](https://api.star-history.com/svg?repos=yongxin-ms/cron_timer&type==Date)](https://star-history.com/#yongxin-ms/cron_timer&Date)
